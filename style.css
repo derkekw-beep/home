@@ -602,3 +602,14 @@ button.gap:active span { color: var(--accent); }
 .sw-btn:active { opacity: .8; }
 #toast.act { pointer-events: auto; padding-right: 8px; display: flex; align-items: center; gap: 10px; }
 .toast-btn { background: var(--bg); color: var(--ink); border-radius: 99px; padding: 6px 12px; font-weight: 800; font-size: 13px; }
+
+/* ---- Geburtstagsliste ---- */
+.bdays { display: flex; flex-direction: column; }
+.bdays .btn { margin-bottom: 4px; }
+.row.bday { width: 100%; text-align: left; min-height: 60px; background: var(--card); }
+.bday.sw-main { background: var(--card); }
+.bday.today .plan-day b { color: var(--accent); }
+.bday-when { font-size: 13px; font-weight: 700; color: var(--muted); padding-right: 14px; white-space: nowrap; flex: none; }
+.bday-when.soon { color: var(--accent); }
+.bdays .sw { border-radius: 0; }
+.bdays .sw + .sw { border-top: 1px solid var(--line); }

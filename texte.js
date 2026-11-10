@@ -24,6 +24,9 @@ export const TOURS = {
 
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 export const NEWS = [
+  ['1.9', '10. November 2026', [
+    ['🎂', 'Geburtstagsliste', 'Im Kalender neben „Tag“ und „Woche“: alle Geburtstage, der nächste zuerst, mit Alter und „in 12 Tagen“. Schnell eintragen über das Plus; erinnert wird drei Tage vorher und am Tag selbst.'],
+  ]],
   ['1.8', '10. November 2026', [
     ['👆', 'Termine zur Seite wischen', 'Nach links wischen: Löschen. Nach rechts wischen: um einen Tag oder eine Woche verschieben. Beides lässt sich kurz rückgängig machen.'],
     ['🔔', 'Mitteilungen einstellbar', 'In den Einstellungen wählt ihr, ob ihr bei Terminen, Einkäufen oder Aufgaben Bescheid bekommt.'],

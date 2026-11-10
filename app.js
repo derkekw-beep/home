@@ -92,7 +92,7 @@ function buildShell() {
         h('button', { class: 'sync', id: 'syncBadge', type: 'button', onclick: openSettings }),
         h('button', { class: 'icon-btn', id: 'btnSettings', type: 'button', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('more')))),
     h('main', { id: 'view' }),
-    h('button', { class: 'fab', id: 'fab', type: 'button', 'aria-label': 'Neuer Termin', onclick: () => openEvent() }, icon('plus')),
+    h('button', { class: 'fab', id: 'fab', type: 'button', 'aria-label': 'Neuer Termin', onclick: () => (ui.tab === 'cal' && ui.mode === 'bday' ? openBirthday() : openEvent()) }, icon('plus')),
     h('nav', { class: 'tabs' }, TABS.map(t =>
       h('button', { class: 'tab', type: 'button', 'data-tab': t.id, onclick: () => setTab(t.id) }, icon(t.icon), h('span', {}, t.label), h('i', { class: 'badge' })))));
 }
@@ -161,7 +161,7 @@ function goDay(d, closeMonth) {
   else if (dir && (ui.month ? wasMonth !== d.slice(0, 7) : wasWeek !== M.mondayOf(d))) play($('#calHead .days'), dir);
 }
 function moveDay(n) { goDay(M.addDays(ui.day, n)); }
-function setMode(m) { ui.mode = m; prefs.mode = m; applyPrefs(true); update(); play($('#calDay'), 'in-up'); }
+function setMode(m) { ui.mode = m; if (m !== 'bday') { prefs.mode = m; applyPrefs(true); } update(); play($('#calDay'), 'in-up'); }
 function moveMonth(n) { goDay(M.addMonths(ui.day, n)); }
 
 // Termin zur Seite wischen: nach rechts ziehen = verschieben, nach links ziehen = löschen (mit „Rückgängig“)
@@ -175,7 +175,7 @@ views.cal = {
   mount(v) {
     v.append(h('div', { id: 'calHead' }), h('div', { id: 'calDay' }));
     swipe($('#calHead'), () => (ui.month ? moveMonth(1) : moveDay(7)), () => (ui.month ? moveMonth(-1) : moveDay(-7)));
-    swipe($('#calDay'), () => moveDay(ui.mode === 'week' ? 7 : 1), () => moveDay(ui.mode === 'week' ? -7 : -1));
+    swipe($('#calDay'), () => { if (ui.mode !== 'bday') moveDay(ui.mode === 'week' ? 7 : 1); }, () => { if (ui.mode !== 'bday') moveDay(ui.mode === 'week' ? -7 : -1); });
   },
   update() {
     const t = today(), events = store.all('event'), todos = store.all('todo').filter(x => !x.done && x.due);
@@ -207,8 +207,9 @@ views.cal = {
     const rel = diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : diff === -1 ? 'Gestern' : '';
     const week = M.weekOf(ui.day), hol = X.holidayOn(ui.day);
     const tools = h('div', { class: 'day-tools' },
-      seg([['day', 'Tag'], ['week', 'Woche']], ui.mode, setMode, 'mini'),
+      seg([['day', 'Tag'], ['week', 'Woche'], ['bday', '🎂']], ui.mode, setMode, 'mini'),
       h('button', { type: 'button', class: 'icon-btn small', id: 'searchBtn', 'aria-label': 'Suchen', onclick: openSearch }, icon('search')));
+    if (ui.mode === 'bday') { $('#calDay').replaceChildren(h('div', { class: 'day-title' }, h('b', {}, 'Geburtstage'), h('span', { class: 'grow' }), tools), birthdayList(events, t)); return; }
     if (ui.mode === 'week') {
       $('#calDay').replaceChildren(
         h('div', { class: 'day-title' }, h('b', {}, `KW ${X.isoWeek(ui.day)}`), h('span', { class: 'grow' }, `${Number(week[0].slice(8))}.${week[0].slice(5, 7) === week[6].slice(5, 7) ? '' : ` ${fmtDay(week[0], { month: 'short' })}`} – ${fmtDay(week[6], { day: 'numeric', month: 'long' })}`), tools),
@@ -304,6 +305,49 @@ function todayCard(events) {
       h('span', { class: 'grow' }, `💡 ${when} ist noch frei.`),
       h('button', { type: 'button', class: 'link', onclick: () => openEvent(null, { date: free, start: 19 * 60, dur: 120, who: 'both', icon: '❤️' }) }, 'Planen'),
       h('button', { type: 'button', class: 'link muted', 'aria-label': 'Hinweis ausblenden', onclick: () => { try { localStorage.setItem('zweiplan-idee', free); } catch { /* egal */ } update(); } }, '✕')) : null);
+}
+
+// Geburtstagsliste: alle Geburtstage, der nächste zuerst, nach Monaten gegliedert
+function birthdayList(events, t) {
+  const list = S.birthdays(events, t);
+  const kids = [h('button', { type: 'button', class: 'btn soft wide', id: 'bdayNew', onclick: () => openBirthday() }, '＋ Geburtstag eintragen')];
+  if (!list.length) kids.push(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🎂'), h('p', {}, 'Noch keine Geburtstage. Tragt Familie und Freunde ein – die App erinnert drei Tage vorher und am Tag selbst.')));
+  let month = '';
+  let card = null;
+  for (const b of list) {
+    const label = fmtDay(b.date, { month: 'long', year: b.date.slice(0, 4) === t.slice(0, 4) ? undefined : 'numeric' });
+    if (label !== month) { month = label; card = h('div', { class: 'card' }); kids.push(h('div', { class: 'sec' }, h('span', {}, label)), card); }
+    const when = b.days === 0 ? 'heute 🎉' : b.days === 1 ? 'morgen' : `in ${b.days} Tagen`;
+    card.append(eventRow(h('button', { type: 'button', class: `row bday${b.days === 0 ? ' today' : ''}`, 'data-id': b.ev.id, onclick: () => openEvent(b.ev.id) },
+      h('span', { class: 'plan-day' }, h('span', { class: 'ag-wd' }, fmtDay(b.date, { weekday: 'short' }).replace('.', '')), h('b', {}, String(Number(b.date.slice(8))))),
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, b.ev.title), h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, b.age > 0 ? `wird ${b.age}` : 'Geburtsjahr unbekannt'))),
+      h('span', { class: `bday-when${b.days <= 7 ? ' soon' : ''}` }, when)), b.ev));
+  }
+  return h('div', { class: 'bdays' }, kids);
+}
+// Geburtstag schnell eintragen: Name, Tag, Monat – Geburtsjahr nur, wenn man es weiß
+function openBirthday() {
+  const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const name = h('input', { type: 'text', class: 'title-in', id: 'bdName', placeholder: 'Wer? z. B. Oma Inge', maxLength: 60, autocomplete: 'off', 'aria-label': 'Name' });
+  const dayIn = h('input', { type: 'text', inputMode: 'numeric', id: 'bdDay', maxLength: 2, placeholder: 'Tag', 'aria-label': 'Tag' });
+  const monthIn = h('select', { id: 'bdMonth', 'aria-label': 'Monat' }, MONTHS.map((l, i) => h('option', { value: String(i + 1), selected: i === new Date().getMonth() }, l)));
+  const yearIn = h('input', { type: 'text', inputMode: 'numeric', id: 'bdYear', maxLength: 4, placeholder: 'z. B. 1956', 'aria-label': 'Geburtsjahr' });
+  const msg = h('p', { class: 'msg', role: 'alert' });
+  const save = () => {
+    const n = name.value.trim(), d = Number(dayIn.value), mo = Number(monthIn.value), y = yearIn.value.trim();
+    if (!n) { msg.textContent = 'Bitte einen Namen eintragen.'; return name.focus(); }
+    if (!(d >= 1 && d <= M.daysInMonth(2000, mo))) { msg.textContent = 'Diesen Tag gibt es in dem Monat nicht.'; return dayIn.focus(); }
+    if (y && !(/^(19|20)\d\d$/.test(y) && Number(y) <= new Date().getFullYear())) { msg.textContent = 'Das Geburtsjahr bitte vierstellig – oder leer lassen.'; return yearIn.focus(); }
+    const it = store.put({ t: 'event', title: n, icon: '🎂', date: `${y || 2000}-${M.pad(mo)}-${M.pad(d)}`, allDay: true, start: 0, dur: 0, who: 'both', rep: 'y', until: '', birth: y ? Number(y) : 0, bd: true, pin: false, rem: -1, days: 1, note: '', by: store.me });
+    closeSheet(); update(); cheer();
+    play($(`.bday[data-id="${it.id}"]`), 'in-pop');
+  };
+  openSheet('Geburtstag eintragen', h('div', { class: 'title-row' }, name),
+    h('div', { class: 'two' }, field('Tag', dayIn), field('Monat', monthIn)),
+    field('Geburtsjahr (wenn ihr es wisst – dann steht das Alter dabei)', yearIn), msg,
+    h('p', { class: 'hint' }, 'Der Geburtstag steht jedes Jahr im Kalender. Wer Mitteilungen an hat, wird drei Tage vorher und am Tag selbst erinnert.'),
+    h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Eintragen')));
+  setTimeout(() => name.focus(), 60);
 }
 
 // Wochenübersicht: sieben Tage untereinander, jeder Termin eine Zeile

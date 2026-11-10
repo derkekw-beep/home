@@ -216,6 +216,10 @@ export function buildPlan(items, now = new Date(), days = 30, max = 150) {
         ...evs.filter(e => e.who === p || e.who === 'both' || !e.who).map(e => `${e.icon || '📌'} ${e.title}${e.allDay ? '' : ` ${fmtT(e.start || 0)}`}`),
         ...todos.filter(t => t.due === day && (!t.who || t.who === 'both' || t.who === p)).map(t => `✅ ${t.title}`),
       ];
+      for (const b of eventsOn(events, addDays(day, 3)).filter(isBirthday)) {
+        const age = Number.isInteger(b.birth) && b.birth > 1900 ? Number(addDays(day, 3).slice(0, 4)) - b.birth : 0;
+        out.push({ at: at + 60000, who: p, title: '🎂 In 3 Tagen', body: `${b.title}${age > 0 ? ` wird ${age}` : ' hat Geburtstag'}`, tab: 'cal', tag: `bd-${b.id}` });
+      }
       if (lines.length) out.push({ at, who: p, title: '☀️ Dein Tag', body: lines.slice(0, 5).join(' · ') + (lines.length > 5 ? ` · +${lines.length - 5} weitere` : ''), tab: 'cal', tag: `tag-${day}` });
     }
   }
@@ -234,11 +238,18 @@ export function buyAgain(all, nowMs, max = 5) {
   }
   return out.sort((a, b) => b.r - a.r).slice(0, max).map(o => o.i);
 }
+// Ist das ein Geburtstag? Jährlicher Termin, als Geburtstag angelegt oder mit Geburtsjahr, Torte oder „Geburtstag“ im Titel
+export const isBirthday = e => !e.x && e.rep === 'y' && !!(e.bd || e.birth || e.icon === '🎂' || /geburtstag/i.test(e.title || ''));
+// Alle Geburtstage, der nächste zuerst: [{ ev, date (nächstes Mal), days, age (wird …, oder null) }]
+export function birthdays(events, today) {
+  return events.filter(isBirthday).map(ev => { const date = nextOccurrence(ev, today); return date ? { ev, date, days: dayDiff(today, date), age: Number.isInteger(ev.birth) && ev.birth > 1900 ? Number(date.slice(0, 4)) - ev.birth : null } : null; })
+    .filter(Boolean).sort((a, b) => a.days - b.days || String(a.ev.title).localeCompare(String(b.ev.title), 'de'));
+}
 // Steht in den nächsten zehn Tagen ein Geburtstag an, für den noch kein „Geschenk“-To-do offen ist?
 export function giftNudge(events, todos, today, hidden = new Set()) {
   let best = null;
   for (const e of events) {
-    if (e.x || e.rep !== 'y' || !(e.birth || e.icon === '🎂' || /geburtstag/i.test(e.title || ''))) continue;
+    if (!isBirthday(e)) continue;
     const day = nextOccurrence(e, addDays(today, 1));
     if (!day) continue;
     const days = dayDiff(today, day), key = `${e.id}:${day}`;
