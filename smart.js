@@ -136,9 +136,11 @@ export function nextDue(due, rep, today) {
 }
 
 // ---- Heute-Karte ------------------------------------------------------------------------------
+// Begrüßung nach Tageszeit
 export function greeting(hour) {
-  return hour < 5 ? 'Gute Nacht' : hour < 11 ? 'Guten Morgen' : hour < 17 ? 'Hallo' : hour < 22 ? 'Guten Abend' : 'Gute Nacht';
+  return hour < 5 ? 'Gute Nacht' : hour < 11 ? 'Guten Morgen' : hour < 14 ? 'Guten Mittag' : hour < 18 ? 'Guten Tag' : hour < 22 ? 'Guten Abend' : 'Gute Nacht';
 }
+export const greetIcon = hour => (hour < 5 ? '🌙' : hour < 11 ? '🌅' : hour < 18 ? '☀️' : hour < 22 ? '🌆' : '🌙');
 // Der nächste Termin von heute, der noch nicht begonnen hat (oder der gerade läuft)
 export function upNext(events, today, nowMin) {
   const timed = eventsOn(events, today).filter(e => !e.allDay);

@@ -559,3 +559,10 @@ button.gap:active span { color: var(--accent); }
 .buddy.wink .b-all, :root[data-buddy=plain] .buddy.wink .b-all { animation: buddyTilt .9s ease-in-out; }
 .buddy:active .b-all { transform: scale(.92); }
 :root[data-buddy=plain] .buddy svg { width: 38px; height: 38px; }
+
+.link.help { display: block; margin: 14px auto 0; color: var(--muted); font-size: 14px; }
+
+/* Begrüßung nach Tageszeit */
+.hello { font-size: 17px; font-weight: 800; color: var(--ink); text-transform: none; letter-spacing: -.01em; display: flex; align-items: center; gap: 7px; }
+.hello-emo { font-size: 20px; }
+.today-card.small .hello { font-size: 15px; }

@@ -416,12 +416,13 @@ function todayCard(events) {
   const small = prefs.card === 'small';
   const fold = h('button', { type: 'button', class: 'card-fold', id: 'cardFold', 'aria-label': small ? 'Karte aufklappen' : 'Karte einklappen', 'aria-expanded': String(!small), onclick: () => { prefs.card = small ? 'open' : 'small'; applyPrefs(true); update(); } }, icon('down', small ? '' : 'flip'));
   if (small) return h('section', { class: 'today-card small', style: whoVars('both') }, fold,
+    h('div', { class: 'hello' }, h('span', { class: 'hello-emo' }, S.greetIcon(new Date().getHours())), `${S.greeting(new Date().getHours())}, ${me.name}`),
     h('div', { class: 'next' }, next
       ? [h('span', { class: 'emo' }, next.ev.icon || '📌'), h('span', {}, h('b', {}, next.ev.title), next.live ? ` läuft noch ${M.fmtDur(next.min)}` : ` ${S.inText(next.min)}`)]
       : 'Heute steht nichts mehr im Kalender.'),
     theirs && theirs.text ? h('div', { class: 'zettel' }, h('span', { class: 'emo' }, '💌'), h('span', {}, h('b', {}, `${ot.name}: `), theirs.text)) : null);
   return h('section', { class: 'today-card', style: whoVars('both') }, fold,
-    h('div', { class: 'hello' }, `${S.greeting(new Date().getHours())}, ${me.name}`),
+    h('div', { class: 'hello' }, h('span', { class: 'hello-emo' }, S.greetIcon(new Date().getHours())), `${S.greeting(new Date().getHours())}, ${me.name}`),
     h('div', { class: 'next' }, next
       ? [h('span', { class: 'emo' }, next.ev.icon || '📌'), h('span', {}, h('b', {}, next.ev.title), next.live ? ` läuft noch ${M.fmtDur(next.min)}` : ` ${S.inText(next.min)}`)]
       : 'Heute steht nichts mehr im Kalender.'),
@@ -682,7 +683,9 @@ views.shop = {
       v.append(quickAdd('Was habt ihr immer da? z. B. Kaffee', text => { for (const part of text.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)) if (!store.all('stock').some(i => i.title.toLowerCase() === part.toLowerCase())) store.put({ t: 'stock', title: part.slice(0, 120), by: store.me }); }),
         h('div', { id: 'stockList' }));
     } else {
-      v.append(h('button', { type: 'button', class: 'btn soft wide', id: 'recipeNew', onclick: () => openRecipe() }, '＋ Neues Rezept'), h('div', { id: 'recipeList' }));
+      v.append(h('button', { type: 'button', class: 'btn soft wide', id: 'recipeNew', onclick: () => openRecipe() }, '＋ Neues Rezept'), h('div', { id: 'recipeList' }),
+        h('button', { type: 'button', class: 'link help', id: 'recipeHelp', onclick: () => openTour('rezepte') }, 'So funktionieren die Rezepte'));
+      if (!tourSeen('rezepte') && !document.querySelector('.intro')) openTour('rezepte');
     }
   },
   suggest() {
@@ -1026,9 +1029,21 @@ const INTRO = [
   ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, den Kalender-Export und die Sicherung findest du oben rechts in den Einstellungen.'],
 ];
 const introSeen = () => { try { return localStorage.getItem('zweiplan-intro') === '1'; } catch { return true; } };
-function openIntro(withCode) {
+// Kurze Vorstellung einer einzelnen Funktion: erscheint beim ersten Öffnen einmal, danach über „So funktioniert’s“
+const TOURS = {
+  rezepte: [
+    ['🍝', 'Rezepte, die sich selbst ausfüllen', 'Tippe bei „Neues Rezept“ einfach einen Namen wie „Lasagne“. Die App schlägt das Gericht vor und trägt die Zutaten ein – anpassen kannst du danach alles.'],
+    ['🔗', 'Oder von einer Rezeptseite', 'Füge den Link zu einem Rezept ein, zum Beispiel von Chefkoch, und tippe auf „Zutaten von der Seite holen“. Name, Portionen und Zutaten kommen von dort.'],
+    ['🛒', 'Mit einem Tipp auf die Einkaufsliste', '„＋ auf die Liste“ fragt, für wie viele ihr kocht, rechnet die Mengen um und setzt nur drauf, was noch fehlt.'],
+    ['🍽️', 'Einplanen und teilen', '„Einplanen“ trägt das Essen für den Abend in den Kalender ein. Einzelne Rezepte lassen sich teilen, alle zusammen als Text ausgeben.'],
+  ],
+};
+const tourSeen = name => { try { return localStorage.getItem(`zweiplan-tour-${name}`) === '1'; } catch { return true; } };
+function openTour(name) { openIntro(false, TOURS[name], `zweiplan-tour-${name}`); }
+
+function openIntro(withCode, tour, key = 'zweiplan-intro') {
   document.querySelector('.intro')?.remove();
-  const pages = withCode ? [...INTRO, ['👋', 'Jetzt zu zweit', 'Das ist euer Paar-Code. Auf dem zweiten Handy die App öffnen, „Ich habe einen Paar-Code“ wählen und ihn eintippen. Du findest ihn später in den Einstellungen wieder.']] : INTRO;
+  const pages = tour || (withCode ? [...INTRO, ['👋', 'Jetzt zu zweit', 'Das ist euer Paar-Code. Auf dem zweiten Handy die App öffnen, „Ich habe einen Paar-Code“ wählen und ihn eintippen. Du findest ihn später in den Einstellungen wieder.']] : INTRO);
   let i = 0;
   const card = h('div', { class: 'intro-card' });
   const dots = h('div', { class: 'intro-dots' });
@@ -1037,14 +1052,15 @@ function openIntro(withCode) {
   const wrap = h('div', { class: 'intro', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Einführung' }, h('div', { class: 'intro-top' }, skip), card, dots, h('div', { class: 'intro-actions' }, next));
   function go(n) {
     if (n >= pages.length) {
-      try { localStorage.setItem('zweiplan-intro', '1'); } catch { /* egal */ }
-      markNews();
+      try { localStorage.setItem(key, '1'); } catch { /* egal */ }
+      if (!tour) markNews();
       wrap.classList.add('out');
       return setTimeout(() => wrap.remove(), 260);
     }
     const dir = n < i ? 'in-right' : 'in-left';
     i = Math.max(0, n);
     const [emo, title, text] = pages[i], last = i === pages.length - 1;
+    wrap.setAttribute('aria-label', tour ? 'Vorstellung' : 'Einführung');
     card.replaceChildren(h('div', { class: 'intro-emo' }, emo), h('h2', {}, title), h('p', {}, text), ...(last && withCode ? [codeBox()] : []));
     dots.replaceChildren(...pages.map((_, k) => h('i', { class: k === i ? 'on' : '' })));
     next.textContent = last ? 'Los geht’s' : 'Weiter';
