@@ -429,6 +429,7 @@ function todayCard(events) {
     h('div', { class: 'stat-row' },
       h('button', { type: 'button', class: 'stat', onclick: () => setTab('shop') }, openShop ? `🛒 ${openShop} ${openShop === 1 ? 'fehlt' : 'fehlen'}` : '🛒 Liste leer'),
       h('button', { type: 'button', class: 'stat', onclick: () => setTab('todo') }, due ? `✅ ${due} fällig` : '✅ nichts fällig'),
+      (m => (m && m.title ? h('button', { type: 'button', class: 'stat', id: 'mealToday', onclick: () => { ui.shop = 'plan'; ui.planDay = t; setTab('shop'); } }, `🍽️ ${m.title}`) : null))(store.get(`meal-${t}`)),
       S.countdowns(events, t).map(c => h('button', { type: 'button', class: 'stat count', onclick: () => goDay(c.date) }, `${c.ev.icon || '📌'} ${c.ev.title} ${S.daysText(c.days)}`))),
     theirs && theirs.text ? h('div', { class: 'zettel' }, h('span', { class: 'emo' }, '💌'), h('span', {}, h('b', {}, `${ot.name}: `), theirs.text)) : null,
     ot.named ? h('button', { type: 'button', class: 'zettel-btn', id: 'zettelBtn', onclick: openZettel }, mine && mine.text ? `Dein Zettel: „${mine.text}“` : `💬 Zettel für ${ot.name} schreiben`)
@@ -672,9 +673,9 @@ const onList = title => store.all('shop').some(i => !i.done && i.title.toLowerCa
 views.shop = {
   mount(v) {
     shopTyped = '';
-    if (!['list', 'stock', 'recipe'].includes(ui.shop)) ui.shop = 'list';
+    if (!['list', 'stock', 'recipe', 'plan'].includes(ui.shop)) ui.shop = 'list';
     if (ui.store) { v.append(h('div', { id: 'shopList', class: 'store' })); return; }
-    v.append(h('div', { id: 'shopTabs' }, seg([['list', 'Liste'], ['stock', 'Vorrat'], ['recipe', 'Rezepte']], ui.shop, x => { ui.shop = x; setTab('shop'); })));
+    v.append(h('div', { id: 'shopTabs' }, seg([['list', 'Liste'], ['stock', 'Vorrat'], ['recipe', 'Rezepte'], ['plan', 'Plan']], ui.shop, x => { ui.shop = x; setTab('shop'); })));
     if (ui.shop === 'list') {
       // mehrere auf einmal: „Milch, Brot, Eier“
       v.append(quickAdd('Was fehlt? z. B. Milch, Brot', text => { for (const part of text.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)) addShop(part.slice(0, 120)); },
@@ -682,8 +683,13 @@ views.shop = {
     } else if (ui.shop === 'stock') {
       v.append(quickAdd('Was habt ihr immer da? z. B. Kaffee', text => { for (const part of text.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)) if (!store.all('stock').some(i => i.title.toLowerCase() === part.toLowerCase())) store.put({ t: 'stock', title: part.slice(0, 120), by: store.me }); }),
         h('div', { id: 'stockList' }));
+    } else if (ui.shop === 'plan') {
+      v.append(h('div', { id: 'planPane' }));
+      swipe($('#planPane'), () => { ui.planDay = M.addDays(ui.planDay || today(), 7); views.shop.update(); play($('#planPane'), 'in-left'); }, () => { ui.planDay = M.addDays(ui.planDay || today(), -7); views.shop.update(); play($('#planPane'), 'in-right'); });
     } else {
-      v.append(h('button', { type: 'button', class: 'btn soft wide', id: 'recipeNew', onclick: () => openRecipe() }, '＋ Neues Rezept'), h('div', { id: 'recipeList' }),
+      v.append(h('div', { class: 'two' },
+        h('button', { type: 'button', class: 'btn soft', id: 'recipeNew', onclick: () => openRecipe() }, '＋ Neues Rezept'),
+        h('button', { type: 'button', class: 'btn soft', id: 'recipeLinks', onclick: openLinkImport }, '🔗 Links importieren')), h('div', { id: 'recipeList' }),
         h('button', { type: 'button', class: 'link help', id: 'recipeHelp', onclick: () => openTour('rezepte') }, 'So funktionieren die Rezepte'));
       if (!tourSeen('rezepte') && !document.querySelector('.intro')) openTour('rezepte');
     }
@@ -702,6 +708,7 @@ views.shop = {
     if (ui.store) return views.shop.updateStore();
     if (ui.shop === 'stock') return views.shop.updateStock();
     if (ui.shop === 'recipe') return views.shop.updateRecipes();
+    if (ui.shop === 'plan') return views.shop.updatePlan();
     const all = store.all('shop');
     const open = all.filter(i => !i.done);
     const done = all.filter(i => i.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 40);
@@ -734,6 +741,31 @@ views.shop = {
       return h('div', { class: 'row', 'data-id': i.id }, h('button', { type: 'button', class: 'row-main pad-l', onclick: () => openShop(i.id) }, h('span', { class: 'row-title' }, i.title)),
         h('button', { type: 'button', class: `pill small${there ? ' there' : ''}`, disabled: there, onclick: () => { addShop(i.title); toast(`„${i.title}“ steht auf der Liste`); cheer(); } }, there ? '✓ steht drauf' : 'Bald leer')); }))]
       : [h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🫙'), h('p', {}, 'Hier steht, was ihr immer im Haus habt: Kaffee, Klopapier, Olivenöl … Wird etwas knapp, genügt ein Tipp.'))]));
+  },
+  // Essensplan: eine Woche, je Tag ein Gericht; die Zutaten der ganzen Woche gehen gesammelt auf die Liste
+  updatePlan() {
+    const t = today(), week = M.weekOf(ui.planDay || t), meals = new Map(store.all('meal').map(m => [m.day, m]));
+    const people = prefs.people > 0 ? prefs.people : 2;
+    const open = week.filter(d => d >= t && !(meals.get(d) && meals.get(d).title));
+    $('#planPane').replaceChildren(
+      h('div', { class: 'plan-head' },
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Vorherige Woche', onclick: () => { ui.planDay = M.addDays(week[0], -7); views.shop.update(); } }, icon('left')),
+        h('b', { id: 'planWeek' }, `KW ${X.isoWeek(week[0])} · ${Number(week[0].slice(8))}.${Number(week[0].slice(5, 7))}. – ${Number(week[6].slice(8))}.${Number(week[6].slice(5, 7))}.`),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Nächste Woche', onclick: () => { ui.planDay = M.addDays(week[0], 7); views.shop.update(); } }, icon('right'))),
+      h('div', { class: 'card' }, week.map(d => { const m = meals.get(d), has = m && m.title, known = has && RC.ingredientsFor(m.title, store.all('recipe'));
+        return h('button', { type: 'button', class: `row plan-row${d === t ? ' today' : ''}${d < t ? ' past' : ''}`, 'data-day': d, onclick: () => openMeal(d) },
+          h('span', { class: 'plan-day' }, h('span', { class: 'ag-wd' }, fmtDay(d, { weekday: 'short' }).replace('.', '')), h('b', {}, String(Number(d.slice(8))))),
+          h('span', { class: `row-main${has ? '' : ' muted'}` }, h('span', { class: 'row-title' }, has ? m.title : 'Noch nichts geplant'), has && !known ? h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, 'ohne Zutatenliste')) : null),
+          h('span', { class: 'plan-go' }, has ? '🍽️' : '＋')); })),
+      field('Für wie viele kocht ihr?', seg([1, 2, 3, 4, 6].map(n => [n, String(n)]), people, v => { prefs.people = v; applyPrefs(true); }, 'chips')),
+      h('div', { class: 'two' },
+        h('button', { type: 'button', class: 'btn soft', id: 'planFill', disabled: !open.length, onclick: () => {
+          const picks = RC.pickMeals(open.length, store.all('recipe'), [...meals.values()].filter(m => week.includes(m.day)).map(m => m.title));
+          open.forEach((d, i) => { if (picks[i]) store.put({ id: `meal-${d}`, t: 'meal', day: d, title: picks[i] }); });
+          toast(picks.length ? `${picks.length} Vorschläge eingetragen – tippe einen an, um ihn zu ändern` : 'Keine Vorschläge mehr'); cheer();
+        } }, '🎲 Woche füllen'),
+        h('button', { type: 'button', class: 'btn primary', id: 'planShop', onclick: () => shopWeek(week) }, '🛒 Zutaten auf die Liste')),
+      h('p', { class: 'hint' }, 'Zutaten kommen aus euren Rezepten oder dem Rezeptbuch, umgerechnet auf eure Personenzahl. Gleiche Zutaten werden zusammengezählt.'));
   },
   updateRecipes() {
     const list = store.all('recipe').sort((a, b) => a.title.localeCompare(b.title, 'de'));
@@ -809,6 +841,69 @@ function openRecipe(id) {
     it ? h('button', { type: 'button', class: 'btn soft', id: 'recipeShare', onclick: async () => { const text = RC.recipeText({ title: title.value.trim(), items: items.value, serves: f.serves, link: link.value.trim() }); try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('Rezept kopiert'); } } catch { /* abgebrochen */ } } }, '📤 Rezept teilen') : null,
     h('div', { class: 'actions' }, it ? confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }) : null, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
   if (!it) setTimeout(() => title.focus(), 60);
+}
+
+// Alle Zutaten der geplanten Gerichte dieser Woche (ab heute) auf die Einkaufsliste
+function shopWeek(week) {
+  const t = today(), people = prefs.people > 0 ? prefs.people : 2, own = store.all('recipe');
+  const meals = store.all('meal').filter(m => week.includes(m.day) && m.day >= t && m.title);
+  const all = []; let dishes = 0;
+  for (const m of meals) { const ing = RC.ingredientsFor(m.title, own); if (!ing) continue; dishes++; all.push(...RC.scaleItems(ing.items, ing.serves || 0, ing.serves ? people : 0)); }
+  if (!dishes) return toast(meals.length ? 'Zu diesen Gerichten gibt es keine Zutatenliste' : 'Für diese Woche ist noch nichts geplant');
+  let n = 0;
+  for (const l of RC.mergeItems(all)) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
+  toast(n ? `${n} Zutaten für ${dishes} ${dishes === 1 ? 'Gericht' : 'Gerichte'} auf der Liste` : 'Steht alles schon drauf');
+  if (n) cheer();
+}
+function openMeal(day) {
+  const id = `meal-${day}`, old = store.get(id), own = store.all('recipe');
+  const set = title => { store.put({ id, t: 'meal', day, title: title.trim().slice(0, 80) }); closeSheet(); };
+  const hits = h('div', { class: 'card results', id: 'mealHits' });
+  const draw = () => {
+    const q = input.value.trim().toLowerCase();
+    const mine = own.filter(r => !q || r.title.toLowerCase().includes(q)).slice(0, q ? 5 : 8).map(r => [r.title, 'eigenes Rezept']);
+    const book = q.length >= 3 ? RC.findDish(q, 6).filter(d => !mine.some(m => m[0].toLowerCase() === d.title.toLowerCase())).map(d => [d.title, 'Rezeptbuch']) : [];
+    const list = [...mine, ...book];
+    hits.hidden = !list.length;
+    hits.replaceChildren(...list.map(([title, from]) => h('button', { type: 'button', class: 'row result', onclick: () => set(title) }, h('span', { class: 'emo' }, from === 'Rezeptbuch' ? '📖' : '⭐'),
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, title), h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, from))))));
+  };
+  const input = h('input', { type: 'text', class: 'title-in', id: 'mealIn', value: old ? old.title || '' : '', placeholder: 'Was gibt es? z. B. Lasagne', maxLength: 80, autocomplete: 'off', enterKeyHint: 'done', 'aria-label': 'Gericht', oninput: draw,
+    onkeydown: e => { if (e.key === 'Enter' && input.value.trim()) set(input.value); } });
+  openSheet(fmtDay(day, { weekday: 'long', day: 'numeric', month: 'long' }), h('div', { class: 'title-row' }, input),
+    h('div', { class: 'chips' }, ['Reste', 'Essen gehen', 'Bestellen', 'Brotzeit'].map(x => h('button', { type: 'button', onclick: () => set(x) }, x))), hits,
+    h('div', { class: 'actions' }, old && old.title ? h('button', { type: 'button', class: 'btn danger', onclick: () => { store.remove(id); closeSheet(); } }, 'Entfernen') : null,
+      h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: () => { if (!input.value.trim()) return input.focus(); set(input.value); } }, 'Speichern')));
+  draw();
+  if (!old) setTimeout(() => input.focus(), 60);
+}
+// Mehrere Rezept-Links auf einmal: einfügen, die App holt eins nach dem anderen
+function openLinkImport() {
+  const box = h('textarea', { rows: 6, id: 'linksIn', placeholder: 'Links einfügen, einer pro Zeile:\nhttps://www.chefkoch.de/rezepte/…\nhttps://www.chefkoch.de/rezepte/…', autocapitalize: 'off', spellcheck: false, 'aria-label': 'Rezept-Links' });
+  const info = h('p', { class: 'hint', id: 'linksInfo' }, 'Bis zu 20 Links. Jedes Rezept dauert ein bis zwei Sekunden.');
+  let busy = false;
+  const go = h('button', { type: 'button', class: 'btn primary', id: 'linksGo', onclick: async () => {
+    if (busy) return;
+    const links = RC.extractLinks(box.value);
+    if (!links.length) { info.textContent = 'Kein Link gefunden (er muss mit https:// beginnen).'; return box.focus(); }
+    busy = true; go.disabled = true;
+    const have = new Set(store.all('recipe').map(r => r.link).filter(Boolean));
+    let ok = 0, dup = 0; const bad = [];
+    for (let i = 0; i < links.length; i++) {
+      info.textContent = `Hole Rezept ${i + 1} von ${links.length} …`;
+      if (have.has(links[i])) { dup++; continue; }
+      const r = await store.ask('recipe', { url: links[i] });
+      if (r && !r.error && r.items && r.items.length) { store.put({ t: 'recipe', title: r.title || 'Rezept', items: r.items.join('\n'), serves: r.serves || 0, link: r.link || links[i], by: store.me }); have.add(r.link || links[i]); ok++; }
+      else bad.push(links[i]);
+    }
+    busy = false; go.disabled = false;
+    info.textContent = `${ok} importiert${dup ? `, ${dup} hattet ihr schon` : ''}${bad.length ? `, ${bad.length} nicht lesbar` : ''}.`;
+    box.value = bad.join('\n');                             // was nicht ging, bleibt zum Nachsehen stehen
+    if (ok) { cheer(); toast(`${ok} ${ok === 1 ? 'Rezept' : 'Rezepte'} importiert`); }
+    if (ok && !bad.length) closeSheet();
+  } }, 'Importieren');
+  openSheet('Rezept-Links importieren', h('p', { class: 'hint' }, 'Rezepte auf einer Rezeptseite aussuchen, die Links kopieren und hier einfügen – alle auf einmal.'), box, info, h('div', { class: 'actions' }, go));
+  setTimeout(() => box.focus(), 60);
 }
 
 function openShop(id) {
@@ -979,6 +1074,11 @@ function openSettings() {
 // ---- Was ist neu (erscheint einmal nach einem Update, sonst unter Einstellungen) -----------------
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 const NEWS = [
+  ['1.6', '10. November 2026', [
+    ['📅', 'Essensplan', 'Unter Einkauf → Plan: für jeden Tag ein Gericht. „Woche füllen“ macht Vorschläge, ein Tipp setzt alle Zutaten der Woche gesammelt auf die Liste.'],
+    ['🔗', 'Mehrere Rezept-Links auf einmal', 'Links untereinander einfügen – die App holt alle Rezepte nacheinander.'],
+    ['🧁', 'Backen', 'Das Rezeptbuch kennt jetzt über 460 Gerichte, darunter rund 100 Kuchen, Plätzchen und Brote – von Zimtschnecken bis Zimtkuchen.'],
+  ]],
   ['1.5', '10. November 2026', [
     ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da (rund 380 Gerichte, vom Avocado-Toast bis zum Bibimbap). Oder such ein bewertetes Rezept auf Chefkoch und lass die Zutaten vom Link holen.'],
     ['👥', 'Für wie viele?', 'Beim Draufsetzen auf die Einkaufsliste rechnet die App die Mengen auf eure Personenzahl um.'],
@@ -1036,7 +1136,7 @@ function newsOnce() {
 // Bei neuen Funktionen nachziehen: hier steht nur, was man unbedingt wissen sollte (fünf Karten, je zwei bis drei Sätze).
 const INTRO = [
   ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“ – Datum und Uhrzeit erkennt die App von selbst. Oben schaltest du zwischen Tag und Woche um; die Lupe findet alles wieder.'],
-  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Rezepte“ genügt ein Name wie „Lasagne“ oder ein Link – die Zutaten kommen von selbst auf die Liste.'],
+  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Rezepte“ genügt ein Name wie „Lasagne“ oder ein Link – die Zutaten kommen von selbst. Unter „Plan“ steht, was es diese Woche gibt.'],
   ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, bekommen Unterpunkte und können sich zwischen euch abwechseln. Der Wochenrückblick zeigt, wer was geschafft hat.'],
   ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen. Zu groß? Der Pfeil klappt sie ein.'],
   ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, den Kalender-Export und die Sicherung findest du oben rechts in den Einstellungen.'],
@@ -1048,7 +1148,8 @@ const TOURS = {
     ['🍝', 'Rezepte, die sich selbst ausfüllen', 'Tippe bei „Neues Rezept“ einfach einen Namen wie „Lasagne“. Die App schlägt das Gericht vor und trägt die Zutaten ein – anpassen kannst du danach alles.'],
     ['🔗', 'Oder ein erprobtes Rezept aus dem Netz', '„Auf Chefkoch suchen“ öffnet die bewerteten Rezepte zu deinem Namen. Link kopieren, „Link einfügen“ – Name, Portionen und Zutaten kommen von dort.'],
     ['🛒', 'Mit einem Tipp auf die Einkaufsliste', '„＋ auf die Liste“ fragt, für wie viele ihr kocht, rechnet die Mengen um und setzt nur drauf, was noch fehlt.'],
-    ['🍽️', 'Einplanen und teilen', '„Einplanen“ trägt das Essen für den Abend in den Kalender ein. Einzelne Rezepte lassen sich teilen, alle zusammen als Text ausgeben.'],
+    ['📅', 'Essensplan für die Woche', 'Unter „Plan“ wählt ihr für jeden Tag ein Gericht oder lasst die Woche füllen. Ein Tipp setzt alle Zutaten gesammelt auf die Liste.'],
+    ['🔗', 'Viele auf einmal, teilen', '„Links importieren“ holt mehrere Rezepte in einem Rutsch. Einzelne Rezepte lassen sich teilen, alle zusammen als Text ausgeben.'],
   ],
 };
 const tourSeen = name => { try { return localStorage.getItem(`zweiplan-tour-${name}`) === '1'; } catch { return true; } };

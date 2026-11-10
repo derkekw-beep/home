@@ -192,3 +192,44 @@ export const recipesText = list => `${[...list].sort((a, b) => a.title.localeCom
 
 // Suche nach bewerteten Rezepten auf einer Rezeptseite (zum Aussuchen und Einfügen des Links)
 export const searchUrl = name => `https://www.chefkoch.de/rs/s0/${encodeURIComponent(String(name || '').trim().toLowerCase().replace(/\s+/g, ' '))}/Rezepte.html`;
+
+// ---- Mehrere Links, Essensplan ------------------------------------------------------------------
+// Alle https-Links aus einem eingefügten Text (jeder nur einmal)
+export function extractLinks(text, max = 20) {
+  const found = String(text || '').match(/https:\/\/[^\s<>"']+/g) || [];
+  return [...new Set(found.map(u => u.replace(/[),.;]+$/, '')))].slice(0, max);
+}
+// Gleiche Zutaten zusammenzählen: „500 g Hackfleisch“ + „250 g Hackfleisch“ -> „750 g Hackfleisch“; ohne Menge nur einmal
+export function mergeItems(list) {
+  const map = new Map();
+  for (const line of list) {
+    const m = /^\s*(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|EL|TL|Dosen?|Päckchen|Packung(?:en)?|Scheiben?|Stangen?|Gläser|Glas|Würfel|Rollen?|Bund)?\s+(.+)$/.exec(line);
+    const name = (m ? m[3] : line).trim(), unit = m && m[2] ? m[2] : '', key = `${unit.toLowerCase()}|${name.toLowerCase()}`;
+    const old = map.get(key);
+    if (!m) { if (!old) map.set(key, { text: line.trim() }); continue; }
+    const n = Number(m[1].replace(',', '.'));
+    if (old && old.n !== undefined) old.n += n; else map.set(key, { n, unit, name });
+  }
+  return [...map.values()].map(v => (v.n === undefined ? v.text : `${String(Math.round(v.n * 100) / 100).replace('.', ',')}${v.unit ? ` ${v.unit}` : ''} ${v.name}`));
+}
+// Zutaten zu einem Gerichtnamen: erst eigene Rezepte, dann das Rezeptbuch (genauer Name)
+export function ingredientsFor(title, own = []) {
+  const t = norm(title);
+  if (!t) return null;
+  const mine = own.find(r => norm(r.title) === t && lines(r.items).length);
+  if (mine) return { items: mine.items, serves: mine.serves || 0 };
+  const b = BOOK.find(([name]) => norm(name) === t);
+  return b ? { items: b[2].split('|').join('\n'), serves: b[1] } : null;
+}
+// Taugt als Hauptgericht für den Essensplan? (kein Gebäck, Nachtisch, Getränk, Grundteig)
+export const isMain = ([name, serves, items]) => serves <= 6 && items.split('|').length >= 5
+  && !/Zucker|Vanille|Kakao|Schokolade|Kuvertüre|Ahornsirup|Nutella|Honig|Müsli|Haferflocken|Würfel Hefe/i.test(items) && !/salat$|suppe$|dip|toast|brot|sauce/i.test(name);
+// n Vorschläge für leere Tage: eigene Rezepte zuerst, dann Hauptgerichte aus dem Buch; nichts doppelt
+export function pickMeals(n, own = [], used = [], rnd = Math.random) {
+  const taken = new Set(used.map(norm));
+  const mix = list => list.map(v => [rnd(), v]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  const pool = [...mix(own.map(r => r.title)), ...mix(BOOK.filter(isMain).map(b => b[0]))];
+  const out = [];
+  for (const t of pool) { if (out.length >= n) break; if (!taken.has(norm(t))) { taken.add(norm(t)); out.push(t); } }
+  return out;
+}

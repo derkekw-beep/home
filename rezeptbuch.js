@@ -274,4 +274,63 @@ Heiße Schokolade;2;500 ml Milch|100 g Zartbitterschokolade|1 EL Zucker|100 ml S
 Limonade selbst gemacht;4;4 Zitronen|80 g Zucker|1 l Mineralwasser|Minze|Eiswürfel
 Bowle mit Erdbeeren;8;500 g Erdbeeren|1 Flasche Weißwein|1 Flasche Sekt|50 g Zucker|1 Zitrone|Minze
 Glühwein;6;1 Flasche Rotwein|1 Orange|2 Zimtstangen|4 Nelken|2 Sternanis|50 g Zucker
+Zimtkuchen vom Blech;16;400 g Mehl|250 g Zucker|200 ml Milch|150 g Butter|3 Eier|1 Päckchen Backpulver|3 TL Zimt|Puderzucker
+Zimtsterne;40;300 g gemahlene Mandeln|250 g Puderzucker|3 Eiweiß|2 TL Zimt|1 Zitrone
+Franzbrötchen;10;500 g Mehl|1 Würfel Hefe|250 ml Milch|70 g Zucker|70 g Butter|1 Ei|150 g Butter für die Füllung|150 g Zucker für die Füllung|3 TL Zimt
+Apfel-Zimt-Muffins;12;250 g Mehl|150 g Zucker|100 g Butter|2 Eier|150 ml Milch|2 Äpfel|2 TL Zimt|1 Päckchen Backpulver
+Bananenmuffins;12;3 reife Bananen|250 g Mehl|120 g Zucker|100 g Butter|2 Eier|1 Päckchen Backpulver|100 g Schokotropfen
+Zitronenmuffins;12;250 g Mehl|150 g Zucker|100 g Butter|2 Eier|150 g Joghurt|2 Zitronen|1 Päckchen Backpulver|Puderzucker
+Cupcakes mit Frischkäse-Frosting;12;200 g Mehl|150 g Zucker|120 g Butter|2 Eier|120 ml Milch|2 TL Backpulver|300 g Frischkäse|100 g Puderzucker|Vanillezucker
+New York Cheesecake;12;200 g Butterkekse|100 g Butter|900 g Frischkäse|200 g Zucker|3 Eier|200 g Schmand|1 Zitrone|Vanillezucker
+Philadelphia-Torte;12;200 g Löffelbiskuits|125 g Butter|600 g Frischkäse|400 ml Sahne|1 Päckchen Götterspeise Zitrone|150 g Zucker|1 Zitrone
+Schwarzwälder Kirschtorte;12;1 dunkler Biskuitboden|1 Glas Kirschen|800 ml Sahne|4 EL Kirschwasser|2 EL Speisestärke|50 g Zucker|100 g Schokoraspel
+Bienenstich;16;500 g Mehl|1 Würfel Hefe|250 ml Milch|80 g Zucker|80 g Butter|200 g Mandelblättchen|100 g Honig|500 ml Milch für die Creme|1 Päckchen Vanillepuddingpulver|400 ml Sahne
+Butterkuchen;16;500 g Mehl|1 Würfel Hefe|250 ml Milch|80 g Zucker|1 Ei|250 g Butter|150 g Zucker zum Bestreuen|100 g Mandelblättchen
+Mohnkuchen mit Streuseln;16;400 g Mehl|200 g Butter|200 g Zucker|1 Ei|500 g Mohnback|500 g Quark|2 Eier für die Füllung|1 Päckchen Vanillepuddingpulver
+Nusskuchen;12;250 g Butter|200 g Zucker|4 Eier|200 g Mehl|200 g gemahlene Haselnüsse|1 Päckchen Backpulver|100 ml Milch|Zartbitterkuvertüre
+Eierlikörkuchen;12;5 Eier|250 g Puderzucker|250 ml Öl|250 ml Eierlikör|125 g Mehl|125 g Speisestärke|1 Päckchen Backpulver|Vanillezucker
+Rotweinkuchen;12;250 g Butter|250 g Zucker|4 Eier|250 g Mehl|1 Päckchen Backpulver|125 ml Rotwein|150 g Schokoraspel|1 TL Zimt|1 EL Kakao
+Gugelhupf;12;500 g Mehl|1 Würfel Hefe|200 ml Milch|150 g Butter|120 g Zucker|3 Eier|100 g Rosinen|50 g Mandeln|Puderzucker
+Fantakuchen;16;4 Eier|250 g Zucker|125 ml Öl|150 ml Orangenlimonade|250 g Mehl|1 Päckchen Backpulver|600 ml Sahne|500 g Schmand|2 Dosen Mandarinen|Zimt
+Maulwurfkuchen;12;4 Eier|200 g Zucker|150 g Butter|200 g Mehl|30 g Kakao|1 Päckchen Backpulver|3 Bananen|600 ml Sahne|100 g Schokoraspel
+Zebrakuchen;12;5 Eier|250 g Zucker|250 ml Öl|125 ml Wasser|375 g Mehl|1 Päckchen Backpulver|2 EL Kakao|Vanillezucker
+Schmandkuchen mit Mandarinen;16;300 g Mehl|150 g Butter|100 g Zucker|1 Ei|2 Päckchen Vanillepuddingpulver|750 ml Milch|600 g Schmand|3 Dosen Mandarinen
+Rhabarberkuchen mit Baiser;12;250 g Mehl|125 g Butter|200 g Zucker|4 Eier|750 g Rhabarber|1 Päckchen Backpulver|100 ml Milch
+Kirschstreuselkuchen;16;500 g Mehl|250 g Butter|250 g Zucker|2 Eier|1 Päckchen Backpulver|2 Gläser Kirschen|Zimt
+Kladdkaka (schwedischer Schokokuchen);8;150 g Butter|250 g Zucker|2 Eier|120 g Mehl|40 g Kakao|Vanillezucker|1 Prise Salz
+Tarte au Citron;8;1 Rolle Mürbeteig|4 Zitronen|3 Eier|150 g Zucker|150 ml Sahne|Puderzucker
+Tarte Tatin;8;1 Rolle Blätterteig|6 Äpfel|100 g Zucker|80 g Butter|Vanilleeis
+Apfeltaschen;8;1 Rolle Blätterteig|3 Äpfel|2 EL Zucker|1 TL Zimt|1 Ei|Puderzucker|1 Zitrone
+Nussecken;24;300 g Mehl|130 g Zucker|130 g Butter|2 Eier|1 TL Backpulver|4 EL Aprikosenmarmelade|200 g Butter für den Belag|200 g Zucker für den Belag|400 g gehackte Haselnüsse|Zartbitterkuvertüre
+Schoko-Crossies;30;200 g Zartbitterkuvertüre|100 g Vollmilchkuvertüre|100 g Cornflakes|50 g Mandelstifte
+Kokosmakronen;30;4 Eiweiß|200 g Zucker|250 g Kokosraspel|Backoblaten|1 Zitrone
+Spritzgebäck;50;250 g Butter|200 g Zucker|2 Eier|500 g Mehl|125 g gemahlene Mandeln|Vanillezucker|Zartbitterkuvertüre
+Engelsaugen;40;250 g Mehl|150 g Butter|80 g Zucker|2 Eigelb|Vanillezucker|150 g Johannisbeergelee|Puderzucker
+Spekulatius;40;250 g Mehl|125 g Butter|125 g brauner Zucker|1 Ei|2 TL Spekulatiusgewürz|1 TL Backpulver|Mandelblättchen
+Christstollen;16;500 g Mehl|1 Würfel Hefe|150 ml Milch|250 g Butter|100 g Zucker|300 g Rosinen|100 g Mandeln|100 g Zitronat|100 g Orangeat|Puderzucker
+Hefezopf;12;500 g Mehl|1 Würfel Hefe|250 ml Milch|80 g Zucker|80 g Butter|1 Ei|Hagelzucker|Mandelblättchen
+Quarkbällchen;20;250 g Quark|250 g Mehl|100 g Zucker|2 Eier|1 Päckchen Backpulver|Vanillezucker|Öl zum Frittieren|Zimt
+Berliner;12;500 g Mehl|1 Würfel Hefe|200 ml Milch|60 g Zucker|60 g Butter|2 Eier|250 g Marmelade|Öl zum Frittieren|Puderzucker
+Donuts;12;500 g Mehl|1 Würfel Hefe|250 ml Milch|60 g Zucker|60 g Butter|1 Ei|Öl zum Frittieren|200 g Puderzucker|Zuckerstreusel
+Scones;8;300 g Mehl|2 TL Backpulver|60 g Butter|40 g Zucker|150 ml Milch|1 Ei|Clotted Cream|Erdbeermarmelade
+Shortbread;20;300 g Mehl|200 g Butter|100 g Zucker|1 Prise Salz|Vanillezucker
+Biskuitrolle mit Erdbeeren;10;4 Eier|120 g Zucker|100 g Mehl|400 ml Sahne|400 g Erdbeeren|Vanillezucker|Puderzucker
+Windbeutel;10;250 ml Wasser|100 g Butter|150 g Mehl|4 Eier|400 ml Sahne|Vanillezucker|Puderzucker
+Linzer Torte;12;300 g Mehl|200 g gemahlene Haselnüsse|200 g Butter|150 g Zucker|1 Ei|1 TL Zimt|300 g Johannisbeermarmelade
+Sachertorte;12;200 g Zartbitterschokolade|150 g Butter|150 g Zucker|6 Eier|150 g Mehl|200 g Aprikosenmarmelade|200 g Zartbitterkuvertüre
+Mandelhörnchen;15;200 g Marzipan|100 g gemahlene Mandeln|100 g Puderzucker|1 Eiweiß|100 g Mandelblättchen|Zartbitterkuvertüre
+Florentiner;25;100 g Butter|100 g Zucker|100 ml Sahne|2 EL Honig|200 g Mandelblättchen|50 g Orangeat|Zartbitterkuvertüre
+Haferkekse;30;200 g Haferflocken|125 g Butter|100 g brauner Zucker|1 Ei|100 g Mehl|1 TL Backpulver|Zimt|Rosinen
+Erdnussbutter-Cookies;20;250 g Erdnussbutter|150 g brauner Zucker|1 Ei|100 g Mehl|1 TL Natron|100 g Schokotropfen
+Schoko-Cookies mit weißer Schokolade;20;250 g Mehl|150 g Butter|150 g brauner Zucker|1 Ei|30 g Kakao|1 TL Backpulver|150 g weiße Schokolade
+Bauernbrot;12;500 g Roggenmehl|250 g Weizenmehl|1 Würfel Hefe|500 ml Wasser|2 TL Salz|1 TL Brotgewürz|75 g Sauerteig
+Dinkelbrötchen;8;500 g Dinkelmehl|1 Würfel Hefe|300 ml Wasser|2 TL Salz|1 TL Honig|2 EL Öl|Sonnenblumenkerne
+Vollkornbrot mit Körnern;12;500 g Vollkornmehl|1 Würfel Hefe|500 ml Wasser|2 TL Salz|2 EL Apfelessig|100 g Sonnenblumenkerne|50 g Leinsamen|50 g Sesam
+Baguette;8;500 g Mehl|10 g Hefe|350 ml Wasser|2 TL Salz
+Pizzateig;4;500 g Mehl|1 Würfel Hefe|300 ml Wasser|4 EL Olivenöl|2 TL Salz|1 TL Zucker
+Hefeteig (Grundrezept);12;500 g Mehl|1 Würfel Hefe|250 ml Milch|80 g Zucker|80 g Butter|1 Ei|1 Prise Salz
+Mürbeteig (Grundrezept);12;300 g Mehl|200 g Butter|100 g Zucker|1 Ei|1 Prise Salz
+Laugenbrötchen;8;500 g Mehl|1 Würfel Hefe|300 ml Wasser|30 g Butter|2 TL Salz|3 EL Natron|grobes Salz
+Käse-Schinken-Hörnchen;12;500 g Mehl|1 Würfel Hefe|250 ml Milch|60 g Butter|150 g Kochschinken|150 g geriebener Käse|1 Ei
+Blätterteig-Zimtschnecken;12;1 Rolle Blätterteig|40 g Butter|60 g brauner Zucker|2 TL Zimt|Puderzucker
 `.trim().split('\n');

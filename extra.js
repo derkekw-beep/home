@@ -59,7 +59,7 @@ export function weekReview(items, nowMs, days = 7) {
 }
 
 // ---- Sicherung --------------------------------------------------------------------------------
-const KEEP = ['event', 'shop', 'todo', 'stock', 'recipe'];
+const KEEP = ['event', 'shop', 'todo', 'stock', 'recipe', 'meal'];
 export function toBackup(items, nowMs) {
   return JSON.stringify({ app: 'home-planer', v: 1, at: nowMs, items: items.filter(i => !i.x && KEEP.includes(i.t)) }, null, 1);
 }

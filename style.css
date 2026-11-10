@@ -566,3 +566,16 @@ button.gap:active span { color: var(--accent); }
 .hello { font-size: 17px; font-weight: 800; color: var(--ink); text-transform: none; letter-spacing: -.01em; display: flex; align-items: center; gap: 7px; }
 .hello-emo { font-size: 20px; }
 .today-card.small .hello { font-size: 15px; }
+
+/* ---- Essensplan ---- */
+.plan-head { display: flex; align-items: center; justify-content: space-between; margin: -4px -6px 8px; font-size: 16px; }
+.plan-row { width: 100%; text-align: left; min-height: 58px; }
+.plan-day { width: 58px; flex: none; display: flex; flex-direction: column; align-items: center; }
+.plan-day b { font-size: 18px; font-weight: 800; }
+.plan-row.today .plan-day b { color: var(--accent); }
+.plan-row.past { opacity: .5; }
+.plan-go { width: 48px; text-align: center; font-size: 18px; color: var(--muted); flex: none; }
+.row-main.muted .row-title { color: var(--muted); font-size: 15px; }
+#planPane { display: flex; flex-direction: column; gap: 14px; touch-action: pan-y; }
+#planPane .card { margin: 0; }
+#shopTabs .seg button { padding: 9px 2px; font-size: 13.5px; }
