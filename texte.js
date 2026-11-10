@@ -5,7 +5,7 @@ export const LOOKS = [['indigo', 'Indigo', '#5046e5'], ['rose', 'Rosé', '#e6498
 
 // Bei neuen Funktionen nachziehen: hier steht nur, was man unbedingt wissen sollte (fünf Karten, je zwei bis drei Sätze).
 export const INTRO = [
-  ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“ – Datum und Uhrzeit erkennt die App von selbst. Oben schaltest du zwischen Tag und Woche um; die Lupe findet alles wieder.'],
+  ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“ – Datum und Uhrzeit erkennt die App von selbst. Einen Termin zur Seite wischen löscht oder verschiebt ihn. Oben schaltest du zwischen Tag und Woche um.'],
   ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Rezepte“ genügt ein Name wie „Lasagne“ oder ein Link – die Zutaten kommen von selbst. Unter „Plan“ steht, was es diese Woche gibt.'],
   ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, bekommen Unterpunkte und können sich zwischen euch abwechseln. Der Wochenrückblick zeigt, wer was geschafft hat.'],
   ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen. Zu groß? Der Pfeil klappt sie ein.'],
@@ -24,6 +24,10 @@ export const TOURS = {
 
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 export const NEWS = [
+  ['1.8', '10. November 2026', [
+    ['👆', 'Termine zur Seite wischen', 'Nach links wischen: Löschen. Nach rechts wischen: um einen Tag oder eine Woche verschieben. Beides lässt sich kurz rückgängig machen.'],
+    ['🔔', 'Mitteilungen einstellbar', 'In den Einstellungen wählt ihr, ob ihr bei Terminen, Einkäufen oder Aufgaben Bescheid bekommt.'],
+  ]],
   ['1.7', '10. November 2026', [
     ['🏪', 'Regale wie in eurem Laden', 'Unter der Einkaufsliste: „Regale sortieren“. Die Liste folgt dann eurem Weg durch den Laden.'],
     ['⏩', 'Verschieben mit einem Tipp', 'Im Termin: „Auf morgen“, „+1 Tag“, „+1 Woche“. Bei überfälligen Aufgaben: alle auf heute oder morgen.'],

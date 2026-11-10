@@ -95,6 +95,7 @@ export function toast(text) {
   let t = $('#toast');
   if (!t) document.body.append(t = h('div', { id: 'toast', role: 'status' }));
   t.textContent = text;
+  t.classList.remove('act');
   t.classList.add('on');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
@@ -146,3 +147,57 @@ export function seg(options, value, onChange, cls = 'seg') {
 }
 export const field = (label, ...control) => h('div', { class: 'field' }, h('div', { class: 'field-label' }, label), ...control);
 
+
+// Hinweis mit einem Knopf, z. B. „Gelöscht – Rückgängig“ (bleibt fünf Sekunden stehen)
+export function toastAction(text, label, fn) {
+  toast(text);
+  const t = $('#toast');
+  t.append(h('button', { type: 'button', class: 'toast-btn', id: 'toastBtn', onclick: () => { t.classList.remove('on', 'act'); fn(); } }, label));
+  t.classList.add('act');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on', 'act'), 5000);
+}
+
+// Zeile, die sich zur Seite wischen lässt: nach rechts gezogen erscheinen die linken Knöpfe, nach links die rechten.
+// main = die eigentliche Zeile; left/right = Listen von [Beschriftung, Aktion, Klasse?]
+let openRow = null;
+const closeRow = () => { if (openRow) { openRow.classList.remove('l', 'r'); openRow.firstChild.nextSibling.nextSibling.style.transform = ''; openRow = null; } };
+document.addEventListener('touchstart', e => { if (openRow && !openRow.contains(e.target)) closeRow(); }, { passive: true });
+export function swipeRow(main, left, right) {
+  const btn = ([label, fn, cls]) => h('button', { type: 'button', class: `sw-btn ${cls || ''}`, onclick: () => { closeRow(); fn(); } }, label);
+  main.classList.add('sw-main');
+  const wrap = h('div', { class: 'sw' }, h('div', { class: 'sw-l' }, left.map(btn)), h('div', { class: 'sw-r' }, right.map(btn)), main);
+  const WL = 8 + left.length * 92, WR = 8 + right.length * 92;
+  let x0 = null, y0 = 0, dx = 0, lock = '', base = 0;
+  const set = x => { main.style.transform = x ? `translateX(${x}px)` : ''; };
+  wrap.addEventListener('touchstart', e => {
+    e.stopPropagation();                                   // die Tagesansicht soll hier nicht mitblättern
+    if (e.touches.length !== 1) { x0 = null; return; }
+    if (openRow && openRow !== wrap) closeRow();
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; lock = '';
+    base = wrap.classList.contains('l') ? WL : wrap.classList.contains('r') ? -WR : 0;
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (x0 === null) return;
+    dx = e.touches[0].clientX - x0;
+    const dy = e.touches[0].clientY - y0;
+    if (!lock && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) { lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y'; if (lock === 'x') wrap.classList.add('drag'); }
+    if (lock !== 'x') return;
+    if (e.cancelable) e.preventDefault();
+    set(Math.max(-WR, Math.min(WL, base + dx)));
+  }, { passive: false });
+  const end = () => {
+    if (x0 === null) return;
+    x0 = null;
+    wrap.classList.remove('drag');
+    if (lock !== 'x') return;
+    const x = base + dx, to = x > 46 ? 'l' : x < -46 ? 'r' : '';
+    wrap.classList.remove('l', 'r');
+    if (to) { wrap.classList.add(to); openRow = wrap; set(to === 'l' ? WL : -WR); } else { set(0); if (openRow === wrap) openRow = null; }
+  };
+  wrap.addEventListener('touchend', end, { passive: true });
+  wrap.addEventListener('touchcancel', end, { passive: true });
+  // ist die Zeile aufgezogen, schließt ein Tipp darauf sie nur (statt den Eintrag zu öffnen)
+  main.addEventListener('click', e => { if (wrap.classList.contains('l') || wrap.classList.contains('r')) { e.stopImmediatePropagation(); e.preventDefault(); closeRow(); } }, true);
+  return wrap;
+}

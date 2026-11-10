@@ -6,7 +6,7 @@ import * as RC from './recipes.js';
 import { createStore } from './store.js';
 import { API, LOCAL } from './config.js';
 import * as Push from './push.js';
-import { $, today, nowMin, fmtDay, h, icon, play, known, knownDone, buddy, cheer, giveFile, toast, swipe, confirmBtn, seg, field } from './ui.js';
+import { $, today, nowMin, fmtDay, h, icon, play, known, knownDone, buddy, cheer, giveFile, toast, swipe, confirmBtn, seg, field, toastAction, swipeRow } from './ui.js';
 import { LOOKS, INTRO, TOURS, NEWS } from './texte.js';
 
 const store = createStore({ storage: localStorage, fetchFn: (u, i) => fetch(u, i), api: API });
@@ -164,6 +164,13 @@ function moveDay(n) { goDay(M.addDays(ui.day, n)); }
 function setMode(m) { ui.mode = m; prefs.mode = m; applyPrefs(true); update(); play($('#calDay'), 'in-up'); }
 function moveMonth(n) { goDay(M.addMonths(ui.day, n)); }
 
+// Termin zur Seite wischen: nach rechts ziehen = verschieben, nach links ziehen = löschen (mit „Rückgängig“)
+function eventRow(main, e) {
+  const move = n => { const d = M.addDays(e.date, n); store.put({ id: e.id, date: d }); toastAction(`Verschoben auf ${fmtDay(d, { weekday: 'short', day: 'numeric', month: 'numeric' })}`, 'Rückgängig', () => store.put({ id: e.id, date: e.date })); };
+  return swipeRow(main, [['+1 Tag', () => move(1), 'shift'], ['+1 Woche', () => move(7), 'shift']],
+    [['Löschen', () => { const copy = { ...e }; store.remove(e.id); toastAction(e.rep ? 'Serie gelöscht' : 'Termin gelöscht', 'Rückgängig', () => store.put(copy)); }, 'del']]);
+}
+
 views.cal = {
   mount(v) {
     v.append(h('div', { id: 'calHead' }), h('div', { id: 'calDay' }));
@@ -214,8 +221,8 @@ views.cal = {
 
     if (allDay.length || due.length) {
       kids.push(h('div', { class: 'allday' },
-        allDay.map(e => h('button', { type: 'button', class: 'chip-ev', style: whoVars(e.who), 'data-id': e.id, onclick: () => openEvent(e.id) },
-          h('span', { class: 'emo' }, e.icon || '📌'), h('span', { class: 'grow' }, X.evTitle(e, ui.day)), X.spanText(e, ui.day) ? h('span', { class: 'tag' }, X.spanText(e, ui.day)) : null, e.rep ? icon('repeat', 'small') : null)),
+        allDay.map(e => eventRow(h('button', { type: 'button', class: 'chip-ev', style: whoVars(e.who), 'data-id': e.id, onclick: () => openEvent(e.id) },
+          h('span', { class: 'emo' }, e.icon || '📌'), h('span', { class: 'grow' }, X.evTitle(e, ui.day)), X.spanText(e, ui.day) ? h('span', { class: 'tag' }, X.spanText(e, ui.day)) : null, e.rep ? icon('repeat', 'small') : null), e)),
         due.map(x => h('div', { class: 'chip-todo', 'data-id': x.id },
           h('button', { type: 'button', class: 'check', 'aria-label': `${x.title} erledigen`, onclick: () => toggleDone(x) }),
           h('button', { type: 'button', class: 'grow', onclick: () => openTodo(x.id) }, x.title), h('span', { class: 'tag' }, 'To-do')))));
@@ -243,14 +250,14 @@ views.cal = {
         if (!nowShown && now < r.start) tl.append(line());
         if (live) nowShown = true;
         const sub = [`${M.fmtTime(r.start)} – ${M.fmtTime(r.end)}`, e.dur ? M.fmtDur(e.dur) : null].filter(Boolean).join(' · ');
-        tl.append(h('button', { type: 'button', class: `ev${past ? ' past' : ''}${live ? ' live' : ''}`, 'data-id': e.id, style: `${whoVars(e.who)};--h:${Math.round(Math.max(52, Math.min(140, 34 + (e.dur || 0) * 0.45)))}px`, onclick: () => openEvent(e.id) },
+        tl.append(eventRow(h('button', { type: 'button', class: `ev${past ? ' past' : ''}${live ? ' live' : ''}`, 'data-id': e.id, style: `${whoVars(e.who)};--h:${Math.round(Math.max(52, Math.min(140, 34 + (e.dur || 0) * 0.45)))}px`, onclick: () => openEvent(e.id) },
           h('span', { class: 'ev-time' }, M.fmtTime(r.start)),
           h('span', { class: 'ev-rail' }, h('span', { class: 'ev-pill' }, e.icon || '📌')),
           h('span', { class: 'ev-body' },
             h('span', { class: 'ev-title' }, X.evTitle(e, ui.day), e.rep ? icon('repeat', 'small') : null),
             h('span', { class: 'ev-sub' }, sub, live ? h('b', { class: 'live-tag' }, 'läuft') : null),
             h('span', { class: 'ev-meta' }, whoTag(e.who), X.spanText(e, ui.day) ? h('span', { class: 'tag' }, X.spanText(e, ui.day)) : null, r.overlap ? h('span', { class: 'warn' }, 'überschneidet sich') : null),
-            e.note ? h('span', { class: 'ev-note' }, e.note) : null)));
+            e.note ? h('span', { class: 'ev-note' }, e.note) : null)), e));
       }
       if (!nowShown) tl.append(line());
       kids.push(tl);

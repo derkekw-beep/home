@@ -587,3 +587,18 @@ button.gap:active span { color: var(--accent); }
 .sec-tools { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--muted); }
 .sec-tools .link { padding: 4px 2px; }
 .icon-btn:disabled { opacity: .25; }
+
+/* ---- Zeilen zur Seite wischen ---- */
+.sw { position: relative; overflow: hidden; border-radius: 14px; }
+.sw-main { position: relative; background: var(--bg); transition: transform .22s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+.sw.drag .sw-main { transition: none; }
+.chip-ev.sw-main { background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 16%, var(--card)), color-mix(in srgb, var(--c2) 16%, var(--card))); width: 100%; }
+.sw-l, .sw-r { position: absolute; top: 4px; bottom: 4px; display: flex; gap: 6px; visibility: hidden; }
+.sw-l { left: 4px; }
+.sw-r { right: 4px; }
+.sw.drag .sw-l, .sw.drag .sw-r, .sw.l .sw-l, .sw.r .sw-r { visibility: visible; }
+.sw-btn { width: 86px; border-radius: 14px; font-size: 13px; font-weight: 800; text-align: center; color: #fff; background: var(--accent); }
+.sw-btn.del { background: var(--danger); }
+.sw-btn:active { opacity: .8; }
+#toast.act { pointer-events: auto; padding-right: 8px; display: flex; align-items: center; gap: 10px; }
+.toast-btn { background: var(--bg); color: var(--ink); border-radius: 99px; padding: 6px 12px; font-weight: 800; font-size: 13px; }
