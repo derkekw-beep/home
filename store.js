@@ -20,7 +20,8 @@ export function createStore({ storage, fetchFn, api, now = () => Date.now() }) {
   let lastOk = saved.lastOk || 0;
   let running = null, again = false;
 
-  const save = () => storage.setItem(KEY, JSON.stringify({ cfg, me, dev, clock, lastOk, items: [...items.values()], dirty: [...dirty] }));
+  // Ein voller Gerätespeicher darf die App nicht anhalten: dann gilt der Stand bis zum nächsten erfolgreichen Speichern
+  const save = () => { try { storage.setItem(KEY, JSON.stringify({ cfg, me, dev, clock, lastOk, items: [...items.values()], dirty: [...dirty] })); } catch { /* voll oder gesperrt */ } };
   const emit = (what, detail) => { for (const f of [...listeners]) f(what, detail); };
   const setStatus = s => { if (s !== status) { status = s; emit('status'); } };
   // Änderungszeitpunkt: Geräteuhr, aber nie älter als etwas schon Gesehenes – so gewinnt die spätere Änderung
@@ -32,16 +33,18 @@ export function createStore({ storage, fetchFn, api, now = () => Date.now() }) {
   });
 
   async function once() {
+    const room = cfg;                                            // dieser Abgleich gehört zu genau diesem Planer
     const ids = [...dirty].slice(0, CHUNK);
     const sent = new Map(ids.map(id => [id, items.get(id).u]));
     let res, data;
     try {
       res = await call('sync', { since: cfg.seq || 0, from: dev, changes: ids.map(id => items.get(id)) });
     } catch { setStatus('offline'); return false; }
-    if (!cfg) return false;                                      // währenddessen abgemeldet
+    if (cfg !== room) return false;                              // währenddessen abgemeldet oder Planer gewechselt
     if (res.status === 403 || res.status === 404) { setStatus('denied'); return false; }
     if (!res.ok) { setStatus('error'); return false; }
     try { data = await res.json(); } catch { setStatus('error'); return false; }
+    if (cfg !== room) return false;
 
     if (data.reset) {                                            // Dienst hat alles verloren: alles noch einmal schicken
       for (const id of items.keys()) dirty.add(id);

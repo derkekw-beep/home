@@ -32,7 +32,14 @@ for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEv
 document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault());
-{ let last = 0; document.addEventListener('touchend', e => { const now = Date.now(); if (now - last < 320 && !e.target.closest('input, textarea, select')) e.preventDefault(); last = now; }, { passive: false }); }
+// Doppeltipp-Zoom verhindert „touch-action“ im Stylesheet – ohne dass schnelles Tippen auf zwei Knöpfe verloren geht.
+
+// Tastatur des Handys: Fenster von unten enden über der Tastatur statt dahinter
+if (window.visualViewport) {
+  const kb = () => document.documentElement.style.setProperty('--kb', `${Math.max(0, Math.round(innerHeight - visualViewport.height - visualViewport.offsetTop))}px`);
+  visualViewport.addEventListener('resize', kb);
+  visualViewport.addEventListener('scroll', kb);
+}
 
 // ---- kleine Helfer ----------------------------------------------------------------------------
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -661,8 +668,45 @@ function openSettings() {
     group('Abgleich', state, h('button', { type: 'button', class: 'btn soft', onclick: async () => { const ok = await store.sync(); toast(ok ? 'Abgeglichen' : 'Gerade keine Verbindung'); } }, 'Jetzt abgleichen')),
     group('Dieses Gerät',
       h('p', { class: 'hint' }, 'Aufs iPhone: in Safari auf „Teilen“ und „Zum Home-Bildschirm“. Die App vom Home-Bildschirm hat einen eigenen Speicher – dort den Paar-Code noch einmal eingeben.'),
+      h('button', { type: 'button', class: 'btn soft', id: 'newsBtn', onclick: () => openNews(false) }, `Was ist neu? · Version ${NEWS[0][0]}`),
       h('button', { type: 'button', class: 'btn soft', id: 'introAgain', onclick: () => { closeSheet(true); openIntro(false); } }, 'Einführung noch einmal ansehen'),
       confirmBtn('Abmelden', 'Wirklich abmelden? Die Einträge bleiben beim Dienst.', async () => { closeSheet(true); await Push.disable(store); store.leave(); }, 'btn danger wide')));
+}
+
+// ---- Was ist neu (erscheint einmal nach einem Update, sonst unter Einstellungen) -----------------
+// Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
+const NEWS = [
+  ['1.3', '10. November 2026', [
+    ['🩹', 'Schnelles Tippen kommt an', 'Zwei Einträge direkt nacheinander abhaken ging manchmal ins Leere – behoben.'],
+    ['🔔', 'Mitteilungen verlässlicher', 'Sie kommen jetzt auch, wenn das Handy die App gerade erst in den Hintergrund gelegt hat.'],
+    ['⌨️', 'Tastatur verdeckt nichts mehr', 'Beim Eintragen bleibt der Speichern-Knopf über der Tastatur sichtbar.'],
+    ['📰', 'Was ist neu', 'Diese Übersicht erscheint nach jedem Update einmal – und steht in den Einstellungen.'],
+  ]],
+  ['1.2', '10. November 2026', [
+    ['🌱', 'Ein kleiner Begleiter', 'Oben in der Leiste schaut er sich um, freut sich beim Abhaken und wird traurig ohne Netz. Süß, schlicht oder aus – in den Einstellungen.'],
+    ['🏠', 'Neuer Name', 'Die App heißt jetzt „Home“.'],
+  ]],
+  ['1.1', '10. November 2026', [
+    ['✨', 'Weichere Übergänge', 'Tage gleiten herein, Abgehaktes wird sichtbar durchgestrichen.'],
+    ['👋', 'Kurze Einführung', 'Fünf Karten erklären das Wichtigste; jederzeit erneut in den Einstellungen.'],
+    ['🔒', 'Kein versehentliches Zoomen', 'Die App bleibt, wie sie ist – auch bei zwei Fingern.'],
+  ]],
+];
+const newsSeen = () => { try { return localStorage.getItem('zweiplan-neu') || ''; } catch { return NEWS[0][0]; } };
+const markNews = () => { try { localStorage.setItem('zweiplan-neu', NEWS[0][0]); } catch { /* egal */ } };
+function openNews(onlyNew) {
+  const seen = newsSeen();
+  const list = onlyNew ? NEWS.filter(n => n[0] > seen) : NEWS;
+  markNews();
+  openSheet('Was ist neu', list.map(([v, date, items]) => h('section', { class: 'set' }, h('h3', {}, `Version ${v} · ${date}`),
+    h('div', { class: 'set-body news' }, items.map(([emo, title, text]) => h('div', { class: 'news-item' }, h('span', { class: 'emo' }, emo), h('div', {}, h('b', {}, title), h('p', {}, text))))))),
+    h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', id: 'newsOk', onclick: () => closeSheet() }, 'Alles klar')));
+}
+// Nach einem Update einmal zeigen – nicht bei der allerersten Einrichtung (da gibt es die Einführung)
+function newsOnce() {
+  if (!store.cfg || !store.me) return;
+  if (!introSeen()) return markNews();
+  if (newsSeen() < NEWS[0][0] && !document.querySelector('.intro')) openNews(true);
 }
 
 // ---- Einführung (einmal je Gerät, später unter Einstellungen) -----------------------------------
@@ -686,6 +730,7 @@ function openIntro(withCode) {
   function go(n) {
     if (n >= pages.length) {
       try { localStorage.setItem('zweiplan-intro', '1'); } catch { /* egal */ }
+      markNews();
       wrap.classList.add('out');
       return setTimeout(() => wrap.remove(), 260);
     }
@@ -833,9 +878,15 @@ addEventListener('offline', () => { disconnect(); store.sync(); });
 setInterval(() => {
   if (document.hidden || !store.cfg) return;
   store.sync();
-  if (ws && ws.readyState === 1) { if (!gotPong) { try { ws.close(); } catch { /* schon zu */ } } else { gotPong = false; ws.send('ping'); } } else connect();
   if (ui.tab === 'cal' && !sheet) { if (ui.follow && ui.day !== today()) ui.day = today(); update(); }
 }, 45000);
+
+// Alle 20 Sekunden „ich bin noch da“: hält die Verbindung wach, erkennt eine tote Verbindung – und der Dienst
+// weiß, dass die App wirklich offen ist (nur dann spart er sich die Mitteilung über Änderungen).
+setInterval(() => {
+  if (document.hidden || !store.cfg) return;
+  if (ws && ws.readyState === 1) { if (!gotPong) { try { ws.close(); } catch { /* schon zu */ } } else { gotPong = false; ws.send('ping'); } } else if (!ws) connect();
+}, 20000);
 
 // Neue App-Version: wird im Hintergrund geladen und übernommen, sobald gerade nichts offen ist
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { const t = e.data && e.data.zweiplanTab; if (['cal', 'shop', 'todo'].includes(t) && $('#view')) { closeSheet(true); setTab(t); } });
@@ -849,6 +900,7 @@ if ('serviceWorker' in navigator && (!LOCAL || new URLSearchParams(location.sear
 }
 
 render();
+newsOnce();
 introOnce();
 if (store.cfg) { store.sync(); connect(); Push.refresh(store); planSoon(); }
 window.zweiplan = { store, ui };   // für die Klicktests
