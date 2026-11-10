@@ -1,3 +1,4 @@
+import { MEHR } from './rezeptbuch.js';
 // Rezepte: ein kleines eingebautes Rezeptbuch (Name tippen – Zutaten sind da), Mengen auf die
 // Personenzahl umrechnen, Rezepte als Text ausgeben. Reine Funktionen, in test/recipes.test.js geprüft.
 
@@ -139,13 +140,21 @@ export const BOOK = [
   ['Bananen-Milchshake', 2, '2 Bananen|400 ml Milch|2 Kugeln Vanilleeis|Honig'],
 ];
 
+// weitere Gerichte aus rezeptbuch.js anhängen (gleiche Namen nur einmal)
+for (const line of MEHR) {
+  const [name, serves, items] = line.split(';');
+  if (name && items && !BOOK.some(b => b[0].toLowerCase() === name.toLowerCase())) BOOK.push([name, Number(serves) || 0, items]);
+}
+
 const norm = s => String(s || '').toLowerCase().replace(/[^a-zäöüß0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 // Passende Gerichte zum getippten Namen (alle Wörter müssen vorkommen; ab drei Buchstaben)
 export function findDish(query, max = 4) {
   const words = norm(query).split(' ').filter(Boolean);
   if (norm(query).length < 3) return [];
-  return BOOK.filter(([name]) => words.every(w => norm(name).includes(w)))
-    .sort((a, b) => (norm(a[0]).startsWith(words[0]) ? 0 : 1) - (norm(b[0]).startsWith(words[0]) ? 0 : 1) || a[0].length - b[0].length)
+  // Reihenfolge: Name beginnt so > ein Wort beginnt so > kommt irgendwo vor; bei Gleichstand wie im Buch (Klassiker zuerst)
+  const rank = name => { const n = norm(name); return n.startsWith(words[0]) ? 0 : n.split(' ').some(w => w.startsWith(words[0])) ? 1 : 2; };
+  return BOOK.map((b, i) => [b, i]).filter(([[name]]) => words.every(w => norm(name).includes(w)))
+    .sort((x, y) => rank(x[0][0]) - rank(y[0][0]) || x[1] - y[1]).map(([b]) => b)
     .slice(0, max).map(([title, serves, items]) => ({ title, serves, items: items.split('|').join('\n') }));
 }
 

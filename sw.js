@@ -12,6 +12,7 @@ const FILES = [
   './smart.js',
   './extra.js',
   './recipes.js',
+  './rezeptbuch.js',
   './store.js',
   './config.js',
   './push.js',

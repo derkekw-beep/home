@@ -980,7 +980,7 @@ function openSettings() {
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 const NEWS = [
   ['1.5', '10. November 2026', [
-    ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da (über 130 Gerichte, auch Kleines wie Avocado-Toast). Oder such ein bewertetes Rezept auf Chefkoch und lass die Zutaten vom Link holen.'],
+    ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da (rund 380 Gerichte, vom Avocado-Toast bis zum Bibimbap). Oder such ein bewertetes Rezept auf Chefkoch und lass die Zutaten vom Link holen.'],
     ['👥', 'Für wie viele?', 'Beim Draufsetzen auf die Einkaufsliste rechnet die App die Mengen auf eure Personenzahl um.'],
     ['🍽️', 'Einplanen und teilen', 'Ein Rezept direkt als Termin für den Abend eintragen, einzeln teilen oder alle als Text ausgeben.'],
     ['🔁', 'Wiederholungen tippen', '„Yoga jeden Donnerstag 18 Uhr“ oder „Müll jede Woche“ – die Wiederholung wird erkannt.'],
