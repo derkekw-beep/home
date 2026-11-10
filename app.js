@@ -100,7 +100,7 @@ const knownDone = () => { known.set = known.next; known.next = new Set(); known.
 // nebenbei, ob der Abgleich klappt (traurig = offline).
 function buddy() {
   const b = h('button', { class: 'buddy', id: 'buddy', type: 'button', 'aria-label': 'Hallo!', onclick: () => cheer('wink') });
-  b.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true">'
+  b.innerHTML = '<svg viewBox="0 0 44 44" width="42" height="42" aria-hidden="true"><g class="b-all">'
     + '<g class="b-sprout"><path d="M22 9 C22 6 22 5 22 3.5" /><path class="b-leaf" d="M22 4.5 C19 1 15.5 2 15 4.8 C18 6.6 20.5 6 22 4.5 Z"/><path class="b-leaf" d="M22 4.5 C25 1 28.5 2 29 4.8 C26 6.6 23.5 6 22 4.5 Z"/></g>'
     + '<g class="b-body"><path class="b-face" d="M22 8 C33 8 39.5 15 39.5 25 C39.5 34.5 32.5 40 22 40 C11.5 40 4.5 34.5 4.5 25 C4.5 15 11 8 22 8 Z"/>'
     + '<ellipse class="b-shine" cx="14" cy="14.5" rx="4.2" ry="2.2" transform="rotate(-28 14 14.5)"/>'
@@ -109,7 +109,7 @@ function buddy() {
     + '<g class="b-eye b-r"><circle cx="29" cy="24" r="3.6"/><circle class="b-glint" cx="27.7" cy="22.5" r="1.35"/><circle class="b-glint" cx="30.3" cy="25.4" r=".6"/></g></g>'
     + '<g class="b-joy"><path d="M11.6 24.8 Q15 20.4 18.4 24.8"/><path d="M25.6 24.8 Q29 20.4 32.4 24.8"/></g>'
     + '<path class="b-mouth" d="M19.2 28.6 Q20.6 31 22 28.8 Q23.4 31 24.8 28.6"/><path class="b-frown" d="M19.5 31 Q22 28.6 24.5 31"/><path class="b-smile" d="M15.5 28.5 Q22 34.5 28.5 28.5"/></g></g>'
-    + '<path class="b-heart" d="M37 9.5 c-1.6 -2.6 -5 -.6 -3.4 2 c.8 1.3 2.2 2.2 3.4 3.3 c1.2 -1.1 2.6 -2 3.4 -3.3 c1.6 -2.6 -1.8 -4.6 -3.4 -2 Z"/></svg>';
+    + '<path class="b-heart" d="M37 9.5 c-1.6 -2.6 -5 -.6 -3.4 2 c.8 1.3 2.2 2.2 3.4 3.3 c1.2 -1.1 2.6 -2 3.4 -3.3 c1.6 -2.6 -1.8 -4.6 -3.4 -2 Z"/></g></svg>';
   return b;
 }
 let cheerTimer;
