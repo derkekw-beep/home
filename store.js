@@ -119,6 +119,8 @@ export function createStore({ storage, fetchFn, api, now = () => Date.now() }) {
     get dev() { return dev; },
     // Sonstige Anfrage an den Dienst (Mitteilungen an-/abmelden, Erinnerungsplan); liefert true bei Erfolg
     async post(path, body) { if (!cfg) return false; try { return (await call(path, body)).ok; } catch { return false; } },
+    // Anfrage mit Antwort (z. B. Rezept einlesen): liefert die Antwort des Dienstes oder null
+    async ask(path, body) { if (!cfg) return null; try { const r = await call(path, body); return r.ok ? await r.json() : null; } catch { return null; } },
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     setMe(p) { me = p; save(); emit('data'); },
     all: t => [...items.values()].filter(i => i.t === t && !i.x),

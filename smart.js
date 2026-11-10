@@ -41,6 +41,11 @@ export function parseQuick(text, today) {
   cut(/ (\d+(?:[.,]\d)?) ?(?:h|std\.?|stunden?)(?= )/i, m => { const v = Math.round(parseFloat(m[1].replace(',', '.')) * 60); if (v < 5 || v > 1440) return false; out.dur = v; })
     || cut(/ (\d{1,3}) ?(?:min\.?|minuten?)(?= )/i, m => { const v = num(m[1]); if (v < 5) return false; out.dur = v; });
 
+  // Wiederholung: „täglich“, „jede Woche“, „alle 2 Wochen“, „monatlich“, „jährlich“ („jeden Freitag“ siehe unten)
+  cut(/ (?:jeden tag|täglich)(?= )/i, () => { out.rep = 'd'; }) || cut(/ alle (?:2|zwei) wochen(?= )/i, () => { out.rep = 'w2'; })
+    || cut(/ (?:jede woche|wöchentlich)(?= )/i, () => { out.rep = 'w'; }) || cut(/ (?:jeden monat|monatlich)(?= )/i, () => { out.rep = 'm'; })
+    || cut(/ (?:jedes jahr|jährlich)(?= )/i, () => { out.rep = 'y'; });
+
   // Datum: „12.11.“, „12.11.2026“, „am 3.12“
   cut(/ (?:am )?(\d{1,2})\.(\d{1,2})\.?(\d{4}|\d{2})?(?= )/i, m => {
     const d = num(m[1]), mo = num(m[2]);
@@ -53,10 +58,11 @@ export function parseQuick(text, today) {
   });
   if (!out.date) {
     cut(/ (heute|morgen|übermorgen)(?: (?:früh|abend|mittag|nachmittag|vormittag))?(?= )/i, m => { out.date = addDays(today, { heute: 0, morgen: 1, übermorgen: 2 }[m[1].toLowerCase()]); })
-      || cut(new RegExp(` (?:am |an |diesen |jeden )?(nächsten? |kommenden? )?(${WDAYS.join('|')}|(?:${WSHORT.join('|')})\\.)(?= )`, 'i'), m => {
-        const w = m[2].toLowerCase(), i = w.endsWith('.') ? WSHORT.indexOf(w.slice(0, -1)) : WDAYS.indexOf(w);
+      || cut(new RegExp(` (?:am |an |diesen )?(jeden )?(nächsten? |kommenden? )?(${WDAYS.join('|')}|(?:${WSHORT.join('|')})\\.)(?= )`, 'i'), m => {
+        const w = m[3].toLowerCase(), i = w.endsWith('.') ? WSHORT.indexOf(w.slice(0, -1)) : WDAYS.indexOf(w);
         let n = (i - weekday(today) + 7) % 7;
-        if (m[1] && n === 0) n = 7;
+        if (m[2] && n === 0) n = 7;
+        if (m[1] && !out.rep) out.rep = 'w';                     // „jeden Freitag“
         out.date = addDays(today, n);
       });
   }
@@ -71,6 +77,7 @@ export function describeQuick(q, today, fmtDate, fmtTime) {
   if (q.date) { const n = dayDiff(today, q.date); parts.push(n === 0 ? 'Heute' : n === 1 ? 'Morgen' : fmtDate(q.date)); }
   if (q.start !== undefined) parts.push(`${fmtTime(q.start)} Uhr`);
   if (q.dur) parts.push(fmtDur(q.dur));
+  if (q.rep) parts.push({ d: 'täglich', w: 'jede Woche', w2: 'alle 2 Wochen', m: 'jeden Monat', y: 'jedes Jahr' }[q.rep]);
   return parts.join(' · ');
 }
 
@@ -208,4 +215,31 @@ export function buildPlan(items, now = new Date(), days = 30, max = 150) {
     }
   }
   return out.sort((a, b) => a.at - b.at).slice(0, max);
+}
+
+// ---- Mitdenken ----------------------------------------------------------------------------------
+// Einkauf: Was wird nach dem bisherigen Kaufrhythmus wohl bald wieder gebraucht? (buys = letzte Kaufzeitpunkte)
+export function buyAgain(all, nowMs, max = 5) {
+  const out = [];
+  for (const i of all) {
+    const b = i.buys || [];
+    if (!i.done || i.x || b.length < 3) continue;
+    const avg = (b[b.length - 1] - b[0]) / (b.length - 1), since = nowMs - b[b.length - 1];
+    if (avg >= 2 * 86400000 && since >= 0.85 * avg && since <= 3 * avg) out.push({ i, r: since / avg });
+  }
+  return out.sort((a, b) => b.r - a.r).slice(0, max).map(o => o.i);
+}
+// Steht in den nächsten zehn Tagen ein Geburtstag an, für den noch kein „Geschenk“-To-do offen ist?
+export function giftNudge(events, todos, today, hidden = new Set()) {
+  let best = null;
+  for (const e of events) {
+    if (e.x || e.rep !== 'y' || !(e.birth || e.icon === '🎂' || /geburtstag/i.test(e.title || ''))) continue;
+    const day = nextOccurrence(e, addDays(today, 1));
+    if (!day) continue;
+    const days = dayDiff(today, day), key = `${e.id}:${day}`;
+    if (days > 10 || hidden.has(key)) continue;
+    if (todos.some(t => !t.done && String(t.title || '').toLowerCase().includes(String(e.title).toLowerCase()))) continue;
+    if (!best || days < best.days) best = { id: e.id, title: e.title, days, key };
+  }
+  return best;
 }

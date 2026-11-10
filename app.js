@@ -2,6 +2,7 @@
 import * as M from './model.js';
 import * as S from './smart.js';
 import * as X from './extra.js';
+import * as RC from './recipes.js';
 import { createStore } from './store.js';
 import { API, LOCAL } from './config.js';
 import * as Push from './push.js';
@@ -431,6 +432,7 @@ function todayCard(events) {
     theirs && theirs.text ? h('div', { class: 'zettel' }, h('span', { class: 'emo' }, '💌'), h('span', {}, h('b', {}, `${ot.name}: `), theirs.text)) : null,
     ot.named ? h('button', { type: 'button', class: 'zettel-btn', id: 'zettelBtn', onclick: openZettel }, mine && mine.text ? `Dein Zettel: „${mine.text}“` : `💬 Zettel für ${ot.name} schreiben`)
       : h('button', { type: 'button', class: 'zettel-btn', onclick: openSettings }, '👋 Zweites Handy verbinden: Paar-Code anzeigen'),
+    giftPrompt(events),
     bellPrompt(),
     ot.named && free && hidden !== free ? h('div', { class: 'idea' },
       h('span', { class: 'grow' }, `💡 ${when} ist noch frei.`),
@@ -483,6 +485,19 @@ function openSearch() {
   setTimeout(() => input.focus(), 60);
 }
 
+// Geburtstag in den nächsten Tagen und noch kein Geschenk auf der Liste? Ein Tipp legt das To-do an.
+function giftPrompt(events) {
+  let hid = [];
+  try { hid = JSON.parse(localStorage.getItem('zweiplan-geschenk') || '[]'); } catch { hid = []; }
+  const g = S.giftNudge(events, store.all('todo'), today(), new Set(hid));
+  if (!g) return null;
+  const hide = () => { try { localStorage.setItem('zweiplan-geschenk', JSON.stringify([...hid, g.key].slice(-20))); } catch { /* egal */ } };
+  return h('div', { class: 'idea', id: 'giftIdea' },
+    h('span', { class: 'grow' }, `🎁 ${g.days === 1 ? 'Morgen' : `In ${g.days} Tagen`}: ${g.title}`),
+    h('button', { type: 'button', class: 'link', onclick: () => { store.put({ t: 'todo', title: `Geschenk: ${g.title}`, done: false, who: '', due: M.addDays(today(), Math.max(0, g.days - 2)), rep: '', note: '', by: store.me }); toast('Als To-do notiert'); cheer(); } }, 'Geschenk?'),
+    h('button', { type: 'button', class: 'link muted', 'aria-label': 'Hinweis ausblenden', onclick: () => { hide(); update(); } }, '✕'));
+}
+
 // Einmaliges Angebot auf der Heute-Karte: Mitteilungen einschalten
 function bellPrompt() {
   let no = false;
@@ -514,7 +529,7 @@ function openEvent(id, preset) {
   const f = old ? { ...old } : { title: '', icon: '📌', date: ui.day, allDay: false, start: ui.day === today() ? soon : 9 * 60, dur: 60, who: store.me, rep: '', note: '', ...(preset || {}) };
   let iconFixed = !!old || !!(preset && preset.icon);
   const touched = {};                 // was von Hand gesetzt wurde, überschreibt die Schnelleingabe nicht mehr
-  let quick = { title: f.title };
+  let quick = { title: f.title };                              // (bei „Einplanen“ kommt der Titel schon mit)
 
   const iconBtn = h('button', { type: 'button', class: 'emo-btn', 'aria-label': 'Symbol wählen', onclick: () => { grid.hidden = !grid.hidden; } }, f.icon);
   const magic = h('div', { class: 'magic', hidden: true });
@@ -526,6 +541,7 @@ function openEvent(id, preset) {
         if (quick.date && !touched.date) { f.date = quick.date; date.value = f.date; endDate.min = f.date; if (f.end && f.end <= f.date) { f.end = ''; endDate.value = ''; } spanInfo(); }
         if (quick.start !== undefined && !touched.time) { f.start = quick.start; if (f.allDay) { f.allDay = false; allDayBox.checked = false; times.hidden = false; spanBox.hidden = true; } }
         if (quick.dur && !touched.time) f.dur = quick.dur;
+        if (quick.rep && !touched.rep) { f.rep = quick.rep; rep.value = f.rep; birthBox.hidden = f.rep !== 'y'; }
         sync();
         const d = S.describeQuick(quick, today(), x => fmtDay(x, { weekday: 'short', day: 'numeric', month: 'numeric' }), M.fmtTime);
         magic.hidden = !d; magic.textContent = d ? `✨ Erkannt: ${d}` : '';
@@ -582,7 +598,7 @@ function openEvent(id, preset) {
   const allDayBox = h('input', { type: 'checkbox', checked: !!f.allDay, onchange: () => { f.allDay = allDayBox.checked; times.hidden = f.allDay; spanInfo(); checkClash(); } });
   const allDay = h('label', { class: 'switch' }, allDayBox, h('span', {}, 'Ganztägig'));
   const pin = h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!f.pin, onchange: e => { f.pin = e.target.checked; } }), h('span', {}, 'Countdown auf der Heute-Karte'));
-  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; birthBox.hidden = f.rep !== 'y'; } }, M.REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
+  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { touched.rep = true; f.rep = rep.value; birthBox.hidden = f.rep !== 'y'; } }, M.REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
   const note = h('textarea', { rows: 2, placeholder: 'Notiz (optional)', maxLength: 600, value: f.note || '', oninput: () => { f.note = note.value; } });
 
   const save = () => {
@@ -619,7 +635,7 @@ function toggleDone(it) {
     return toast(`Erledigt 🎉 Wieder fällig: ${M.dueLabel(due, today()).text}`);
   }
   if (!it.done) cheer();
-  store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'todo' ? { doneBy: it.done ? '' : store.me } : {}), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1 } : {}) });
+  store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'todo' ? { doneBy: it.done ? '' : store.me } : {}), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1, buys: [...(it.buys || []), Date.now()].slice(-6) } : {}) });
 }
 function row(it, { meta, onOpen, title = it.title, lead }) {
   const key = `${it.id}:${it.done ? 1 : 0}`, fresh = known.ready && !known.set.has(key);
@@ -671,9 +687,13 @@ views.shop = {
   },
   suggest() {
     if (!$('#shopSuggest')) return;
-    const list = S.suggestShop(store.all('shop'), shopTyped.split(/[,;]/).pop());
-    $('#shopSuggest').replaceChildren(...(list.length ? [h('span', { class: 'suggest-label' }, shopTyped ? 'Meinst du' : 'Oft gekauft'),
-      ...list.map(i => h('button', { type: 'button', onclick: () => { addShop(i.title); const inp = $('.quick input'); if (shopTyped && inp) { inp.value = ''; shopTyped = ''; } } }, `＋ ${i.title}`))] : []));
+    const all = store.all('shop');
+    const chip = i => h('button', { type: 'button', onclick: () => { addShop(i.title); const inp = $('.quick input'); if (shopTyped && inp) { inp.value = ''; shopTyped = ''; } } }, `＋ ${i.title}`);
+    const soon = shopTyped ? [] : S.buyAgain(all, Date.now());                    // nach eurem Kaufrhythmus wohl bald leer
+    const list = S.suggestShop(all, shopTyped.split(/[,;]/).pop()).filter(i => !soon.includes(i));
+    $('#shopSuggest').replaceChildren(
+      ...(soon.length ? [h('span', { class: 'suggest-label hot' }, 'Bald wieder nötig?'), ...soon.map(chip)] : []),
+      ...(list.length ? [h('span', { class: 'suggest-label' }, shopTyped ? 'Meinst du' : 'Oft gekauft'), ...list.map(chip)] : []));
   },
   update() {
     if (ui.store) return views.shop.updateStore();
@@ -716,25 +736,61 @@ views.shop = {
     const list = store.all('recipe').sort((a, b) => a.title.localeCompare(b.title, 'de'));
     const lines = r => String(r.items || '').split('\n').map(x => x.trim()).filter(Boolean);
     $('#recipeList').replaceChildren(...(list.length ? [h('div', { class: 'card' }, list.map(r => h('div', { class: 'row', 'data-id': r.id },
-      h('button', { type: 'button', class: 'row-main pad-l', onclick: () => openRecipe(r.id) }, h('span', { class: 'row-title' }, `📖 ${r.title}`), h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, `${lines(r).length} Zutaten`))),
-      h('button', { type: 'button', class: 'pill small', onclick: () => cook(r) }, '＋ auf die Liste'))))]
-      : [h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🍝'), h('p', {}, 'Lieblingsgerichte mit ihren Zutaten: Ein Tipp setzt alles auf die Einkaufsliste.'))]));
+      h('button', { type: 'button', class: 'row-main pad-l', onclick: () => openRecipe(r.id) }, h('span', { class: 'row-title' }, `📖 ${r.title}`), h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, `${lines(r).length} Zutaten${r.serves ? ` · für ${r.serves}` : ''}`))),
+      h('button', { type: 'button', class: 'pill small', onclick: () => askCook(r) }, '＋ auf die Liste')))),
+      h('button', { type: 'button', class: 'btn soft wide', id: 'recipesExport', onclick: () => giveFile('home-rezepte.txt', RC.recipesText(list), 'text/plain') }, '📤 Alle Rezepte als Text ausgeben')]
+      : [h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🍝'), h('p', {}, 'Tippe einen Namen wie „Lasagne“ – die Zutaten kommen von selbst. Oder füge den Link einer Rezeptseite ein. Ein Tipp setzt dann alles auf die Einkaufsliste.'))]));
   },
 };
-function cook(r) {
-  const lines = String(r.items || '').split('\n').map(x => x.trim()).filter(Boolean);
+// Zutaten eines Rezepts auf die Einkaufsliste setzen – umgerechnet auf „people“ Personen, ohne Doppelte
+function cook(r, people) {
+  const list = RC.scaleItems(r.items, r.serves || 0, people || r.serves || 0);
   let n = 0;
-  for (const l of lines) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
+  for (const l of list) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
   toast(n ? `${n} ${n === 1 ? 'Zutat' : 'Zutaten'} für „${r.title}“ auf der Liste` : 'Steht alles schon drauf');
   if (n) cheer();
 }
+// Vor dem Draufsetzen: für wie viele? (nur wenn das Rezept seine Portionen kennt)
+function askCook(r) {
+  if (!r.serves) return cook(r);
+  let people = prefs.people > 0 ? prefs.people : r.serves;
+  const preview = h('div', { class: 'card preview', id: 'cookPreview' });
+  const draw = () => preview.replaceChildren(...RC.scaleItems(r.items, r.serves, people).map(l => h('div', { class: 'row pad-l' }, h('span', { class: 'row-title' }, l))));
+  draw();
+  openSheet(`${r.title}`,
+    field('Für wie viele?', seg([1, 2, 3, 4, 6, 8].map(n => [n, String(n)]), people, v => { people = v; draw(); }, 'chips')),
+    h('p', { class: 'hint' }, `Das Rezept ist für ${r.serves} gedacht – die Mengen werden umgerechnet.`), preview,
+    h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', id: 'cookGo', onclick: () => { prefs.people = people; applyPrefs(true); closeSheet(); cook(r, people); } }, '🛒 Auf die Einkaufsliste')));
+}
 function openRecipe(id) {
   const it = id ? store.get(id) : null;
-  const title = h('input', { type: 'text', class: 'title-in', value: it ? it.title : '', placeholder: 'Name, z. B. Spaghetti Bolognese', maxLength: 80, 'aria-label': 'Name des Rezepts' });
+  const f = { serves: it ? it.serves || 0 : 0, link: it ? it.link || '' : '' };
+  const suggest = h('div', { class: 'suggest inline', id: 'dishSuggest' });
+  const fill = d => { title.value = d.title; items.value = d.items.join ? d.items.join('\n') : d.items; f.serves = d.serves || 0; servesSeg.set(f.serves); if (d.link) { f.link = d.link; link.value = d.link; } suggest.replaceChildren(); };
+  const title = h('input', { type: 'text', class: 'title-in', value: it ? it.title : '', placeholder: 'Name, z. B. Lasagne', maxLength: 80, autocomplete: 'off', 'aria-label': 'Name des Rezepts',
+    oninput: () => { const hits = items.value.trim() ? [] : RC.findDish(title.value);          // Rezeptbuch: Zutaten vorschlagen, solange noch keine dastehen
+      suggest.replaceChildren(...(hits.length ? [h('span', { class: 'suggest-label' }, '✨ Zutaten einfügen:'), ...hits.map(d => h('button', { type: 'button', onclick: () => { fill(d); toast('Zutaten eingefügt – passe sie an, wie du magst'); } }, d.title))] : [])); } });
   const items = h('textarea', { rows: 7, maxLength: 1500, placeholder: 'Zutaten, eine pro Zeile:\n500 g Hackfleisch\nSpaghetti\n2 Dosen Tomaten', value: it ? it.items || '' : '', 'aria-label': 'Zutaten' });
-  const save = () => { const t = title.value.trim(); if (!t) { title.focus(); return null; } const r = store.put({ ...(it ? { id } : { by: store.me }), t: 'recipe', title: t, items: items.value.trim() }); closeSheet(); return r; };
-  openSheet(it ? 'Rezept' : 'Neues Rezept', h('div', { class: 'title-row' }, title), items,
-    h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) cook(r); } }, '🛒 Speichern und Zutaten auf die Liste'),
+  const servesSeg = seg([[0, '?'], ...[1, 2, 3, 4, 6, 8].map(n => [n, String(n)])], f.serves, v => { f.serves = v; }, 'chips');
+  const link = h('input', { type: 'text', inputMode: 'url', value: f.link, placeholder: 'https://www.chefkoch.de/rezepte/…', maxLength: 300, autocomplete: 'off', autocapitalize: 'off', spellcheck: false, 'aria-label': 'Link zum Rezept' });
+  const fetchBtn = h('button', { type: 'button', class: 'btn soft', id: 'recipeFetch', onclick: async () => {
+    if (!link.value.trim()) return link.focus();
+    fetchBtn.disabled = true; fetchBtn.textContent = 'Lese die Seite …';
+    const r = await store.ask('recipe', { url: link.value.trim() });
+    fetchBtn.disabled = false; fetchBtn.textContent = 'Zutaten von der Seite holen';
+    if (!r) return toast('Gerade keine Verbindung');
+    if (r.error) return toast({ adresse: 'Das ist keine gültige Adresse (https://…)', netz: 'Die Seite ist nicht erreichbar', 'kein-rezept': 'Auf dieser Seite habe ich kein Rezept gefunden' }[r.error] || 'Das hat nicht geklappt');
+    fill({ title: title.value.trim() || r.title, serves: r.serves, items: r.items, link: r.link });
+    toast(`${r.items.length} Zutaten gefunden`); cheer();
+  } }, 'Zutaten von der Seite holen');
+  const save = () => { const t = title.value.trim(); if (!t) { title.focus(); return null; } const r = store.put({ ...(it ? { id } : { by: store.me }), t: 'recipe', title: t, items: items.value.trim(), serves: f.serves || 0, link: link.value.trim().slice(0, 300) }); closeSheet(); return r; };
+  openSheet(it ? 'Rezept' : 'Neues Rezept', h('div', { class: 'title-row' }, title), suggest, items,
+    field('Für wie viele ist das?', servesSeg),
+    field('Oder von einer Rezeptseite', link, fetchBtn),
+    h('div', { class: 'two' },
+      h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) askCook(r); } }, '🛒 Auf die Liste'),
+      h('button', { type: 'button', class: 'btn soft', id: 'recipePlan', onclick: () => { const r = save(); if (r) { setTab('cal'); openEvent(null, { title: r.title, icon: '🍽️', start: 18 * 60 + 30, dur: 60, who: 'both' }); } } }, '🍽️ Einplanen')),
+    it ? h('button', { type: 'button', class: 'btn soft', id: 'recipeShare', onclick: async () => { const text = RC.recipeText({ title: title.value.trim(), items: items.value, serves: f.serves, link: link.value.trim() }); try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('Rezept kopiert'); } } catch { /* abgebrochen */ } } }, '📤 Rezept teilen') : null,
     h('div', { class: 'actions' }, it ? confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }) : null, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
   if (!it) setTimeout(() => title.focus(), 60);
 }
@@ -755,8 +811,10 @@ views.todo = {
     v.append(
       quickAdd('Neue Aufgabe, z. B. Müll morgen', text => {
         const q = S.parseQuick(text, today());      // ein Datum im Text wird zur Fälligkeit
-        store.put({ t: 'todo', title: q.title, done: false, who: ui.filter || '', due: q.date || '', rep: '', note: '', by: store.me });
-        if (q.date) toast(`Fällig: ${M.dueLabel(q.date, today()).text}`);
+        const again = ['d', 'w', 'w2', 'm'].includes(q.rep) ? q.rep : '';            // „Müll jede Woche“ wird gleich wiederkehrend
+        const due = q.date || (again ? today() : '');
+        store.put({ t: 'todo', title: q.title, done: false, who: ui.filter || '', due, rep: again, note: '', by: store.me });
+        if (due) toast(`Fällig: ${M.dueLabel(due, today()).text}${again ? ` · ${(S.TODO_REPEATS.find(r => r[0] === again) || ['', ''])[1].toLowerCase()}` : ''}`);
       }),
       h('div', { id: 'todoFilter' }), h('div', { id: 'todoList' }),
       h('button', { type: 'button', class: 'btn soft wide', id: 'reviewBtn', onclick: openReview }, '📊 Wochenrückblick'));
@@ -905,6 +963,13 @@ function openSettings() {
 // ---- Was ist neu (erscheint einmal nach einem Update, sonst unter Einstellungen) -----------------
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 const NEWS = [
+  ['1.5', '10. November 2026', [
+    ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da. Oder füge den Link einer Rezeptseite ein und lass die Zutaten holen.'],
+    ['👥', 'Für wie viele?', 'Beim Draufsetzen auf die Einkaufsliste rechnet die App die Mengen auf eure Personenzahl um.'],
+    ['🍽️', 'Einplanen und teilen', 'Ein Rezept direkt als Termin für den Abend eintragen, einzeln teilen oder alle als Text ausgeben.'],
+    ['🔁', 'Wiederholungen tippen', '„Yoga jeden Donnerstag 18 Uhr“ oder „Müll jede Woche“ – die Wiederholung wird erkannt.'],
+    ['🧠', 'Denkt mit', 'Die Einkaufsliste schlägt vor, was nach eurem Rhythmus bald wieder fehlt. Vor Geburtstagen erinnert die Heute-Karte ans Geschenk.'],
+  ]],
   ['1.4', '10. November 2026', [
     ['🗓️', 'Kalender aufgeräumt', 'Neue Wochenübersicht (Tag/Woche umschalten), die Heute-Karte lässt sich einklappen, Vergangenes von heute faltet sich zusammen. Dazu Feiertage und Kalenderwoche.'],
     ['⚠️', 'Überschneidungen', 'Beim Eintragen warnt die App, wenn schon etwas ansteht – und schlägt die nächste freie Zeit vor.'],
@@ -955,7 +1020,7 @@ function newsOnce() {
 // Bei neuen Funktionen nachziehen: hier steht nur, was man unbedingt wissen sollte (fünf Karten, je zwei bis drei Sätze).
 const INTRO = [
   ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“ – Datum und Uhrzeit erkennt die App von selbst. Oben schaltest du zwischen Tag und Woche um; die Lupe findet alles wieder.'],
-  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Vorrat“ und „Rezepte“ landet Wiederkehrendes mit einem Tipp auf der Liste.'],
+  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Rezepte“ genügt ein Name wie „Lasagne“ oder ein Link – die Zutaten kommen von selbst auf die Liste.'],
   ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, bekommen Unterpunkte und können sich zwischen euch abwechseln. Der Wochenrückblick zeigt, wer was geschafft hat.'],
   ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen. Zu groß? Der Pfeil klappt sie ein.'],
   ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, den Kalender-Export und die Sicherung findest du oben rechts in den Einstellungen.'],

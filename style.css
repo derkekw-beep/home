@@ -539,3 +539,12 @@ button.gap:active span { color: var(--accent); }
 #view.view-cal { padding-bottom: 0; }
 #view.view-cal #calDay { flex: 1 0 auto; touch-action: pan-y; padding-bottom: calc(var(--tabs) + var(--sab) + 96px); }
 #calHead { touch-action: pan-y; }
+
+/* ---- Rezepte ---- */
+.suggest.inline { margin: -8px 0 -4px; padding: 0; flex-wrap: wrap; overflow: visible; }
+.suggest-label.hot { color: var(--accent); }
+.preview { margin: 0; max-height: 34vh; overflow-y: auto; box-shadow: none; }
+.preview .row { min-height: 40px; }
+.preview .row-title { font-size: 15px; }
+#recipesExport { margin-top: 4px; }
+.btn:disabled { opacity: .6; }
