@@ -797,7 +797,12 @@ function openRecipe(id) {
   const save = () => { const t = title.value.trim(); if (!t) { title.focus(); return null; } const r = store.put({ ...(it ? { id } : { by: store.me }), t: 'recipe', title: t, items: items.value.trim(), serves: f.serves || 0, link: link.value.trim().slice(0, 300) }); closeSheet(); return r; };
   openSheet(it ? 'Rezept' : 'Neues Rezept', h('div', { class: 'title-row' }, title), suggest, items,
     field('Für wie viele? (Die Mengen passen sich an)', servesSeg),
-    field('Oder von einer Rezeptseite', link, fetchBtn),
+    field('Oder ein erprobtes Rezept von einer Rezeptseite',
+      h('p', { class: 'hint' }, 'Rezept dort aussuchen, Link kopieren, hier einfügen.'),
+      h('div', { class: 'two' },
+        h('button', { type: 'button', class: 'btn soft', id: 'recipeSearch', onclick: () => { if (!title.value.trim()) { toast('Erst oben einen Namen eintippen'); return title.focus(); } window.open(RC.searchUrl(title.value), '_blank', 'noopener'); } }, '🔎 Auf Chefkoch suchen'),
+        h('button', { type: 'button', class: 'btn soft', id: 'recipePaste', onclick: async () => { try { const t = (await navigator.clipboard.readText()).trim(); if (/^https:\/\//.test(t)) { link.value = t; fetchBtn.click(); } else toast('In der Zwischenablage ist kein Link'); } catch { toast('Bitte den Link von Hand einfügen'); link.focus(); } } }, '📋 Link einfügen')),
+      link, fetchBtn),
     h('div', { class: 'two' },
       h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) askCook(r); } }, '🛒 Auf die Liste'),
       h('button', { type: 'button', class: 'btn soft', id: 'recipePlan', onclick: () => { const r = save(); if (r) { setTab('cal'); openEvent(null, { title: r.title, icon: '🍽️', start: 18 * 60 + 30, dur: 60, who: 'both' }); } } }, '🍽️ Einplanen')),
@@ -975,7 +980,7 @@ function openSettings() {
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 const NEWS = [
   ['1.5', '10. November 2026', [
-    ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da. Oder füge den Link einer Rezeptseite ein und lass die Zutaten holen.'],
+    ['🍝', 'Rezepte füllen sich selbst', 'Tippe „Lasagne“ – die Zutaten stehen da (über 130 Gerichte, auch Kleines wie Avocado-Toast). Oder such ein bewertetes Rezept auf Chefkoch und lass die Zutaten vom Link holen.'],
     ['👥', 'Für wie viele?', 'Beim Draufsetzen auf die Einkaufsliste rechnet die App die Mengen auf eure Personenzahl um.'],
     ['🍽️', 'Einplanen und teilen', 'Ein Rezept direkt als Termin für den Abend eintragen, einzeln teilen oder alle als Text ausgeben.'],
     ['🔁', 'Wiederholungen tippen', '„Yoga jeden Donnerstag 18 Uhr“ oder „Müll jede Woche“ – die Wiederholung wird erkannt.'],
@@ -1041,7 +1046,7 @@ const introSeen = () => { try { return localStorage.getItem('zweiplan-intro') ==
 const TOURS = {
   rezepte: [
     ['🍝', 'Rezepte, die sich selbst ausfüllen', 'Tippe bei „Neues Rezept“ einfach einen Namen wie „Lasagne“. Die App schlägt das Gericht vor und trägt die Zutaten ein – anpassen kannst du danach alles.'],
-    ['🔗', 'Oder von einer Rezeptseite', 'Füge den Link zu einem Rezept ein, zum Beispiel von Chefkoch, und tippe auf „Zutaten von der Seite holen“. Name, Portionen und Zutaten kommen von dort.'],
+    ['🔗', 'Oder ein erprobtes Rezept aus dem Netz', '„Auf Chefkoch suchen“ öffnet die bewerteten Rezepte zu deinem Namen. Link kopieren, „Link einfügen“ – Name, Portionen und Zutaten kommen von dort.'],
     ['🛒', 'Mit einem Tipp auf die Einkaufsliste', '„＋ auf die Liste“ fragt, für wie viele ihr kocht, rechnet die Mengen um und setzt nur drauf, was noch fehlt.'],
     ['🍽️', 'Einplanen und teilen', '„Einplanen“ trägt das Essen für den Abend in den Kalender ein. Einzelne Rezepte lassen sich teilen, alle zusammen als Text ausgeben.'],
   ],
