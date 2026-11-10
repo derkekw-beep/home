@@ -558,10 +558,13 @@ function openEvent(id, preset) {
     h('div', { class: 'two' }, field('Beginn', start), field('Ende', end)), durs, durLabel, clash, field('Erinnern', rem));
   sync();
   // Mehrere Tage: „Bis“ wählen – der Termin gilt dann an jedem Tag (mit Uhrzeit: jeden Tag zur selben Zeit)
-  const endDate = h('input', { type: 'date', value: f.days > 1 ? M.addDays(f.date, f.days - 1) : '', min: f.date, 'aria-label': 'Bis', onchange: () => { f.end = endDate.value && endDate.value > f.date ? endDate.value : ''; endDate.value = f.end; spanInfo(); checkClash(); } });
+  const endDate = h('input', { type: 'date', value: f.days > 1 ? M.addDays(f.date, f.days - 1) : '', min: f.date, 'aria-label': 'Bis',
+    oninput: () => { f.end = endDate.value && endDate.value > f.date ? endDate.value : ''; spanInfo(); checkClash(); },      // sofort übernehmen (manche Handys melden „fertig“ erst beim Verlassen)
+    onchange: () => { f.end = endDate.value && endDate.value > f.date ? endDate.value : ''; endDate.value = f.end; spanInfo(); checkClash(); } });
   f.end = endDate.value;
-  const spanNote = h('span', { class: 'dur-label', hidden: true });
-  function spanInfo() { const n = f.end ? M.dayDiff(f.date, f.end) + 1 : 1; spanNote.hidden = n < 2; spanNote.textContent = n > 60 ? 'Höchstens 60 Tage – bitte „Wiederholen“ nutzen.' : `${n} Tage${f.allDay ? '' : ', jeden Tag zur selben Uhrzeit'}`; }
+  // Die Zeile steht immer da (auch bei einem Tag), damit beim Auswählen nichts springt und kein Tipp danebengeht
+  const spanNote = h('span', { class: 'dur-label', id: 'spanNote' });
+  function spanInfo() { const n = f.end ? M.dayDiff(f.date, f.end) + 1 : 1; spanNote.textContent = n < 2 ? 'Ein Tag' : n > 60 ? 'Höchstens 60 Tage – bitte „Wiederholen“ nutzen.' : `${n} Tage${f.allDay ? '' : ', jeden Tag zur selben Uhrzeit'}`; }
   const spanBox = h('div', {});                                    // (früher eigenes Feld; „Bis“ steht jetzt neben dem Datum)
   const birth = h('input', { type: 'text', inputMode: 'numeric', maxLength: 4, placeholder: 'z. B. 1956', value: f.birth ? String(f.birth) : '', 'aria-label': 'Geburtsjahr' });
   const birthBox = h('div', { hidden: f.rep !== 'y' }, field('Geburtstag? Geburtsjahr (dann steht das Alter dabei)', birth));
