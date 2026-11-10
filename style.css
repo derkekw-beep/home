@@ -31,7 +31,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
 body {
   background: var(--bg); color: var(--ink); overflow: hidden; overscroll-behavior: none;
   font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
@@ -344,3 +344,18 @@ textarea { resize: none; display: block; }
 :root { transition: background-color .3s; }
 body, .card, .set-body, .tabs, .sheet, .today-card { transition: background-color .3s, color .3s; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ---- Einführung ---- */
+.intro { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column; padding: calc(var(--sat) + 10px) 24px calc(var(--sab) + 22px); animation: inUp .35s backwards; transition: opacity .25s, transform .25s; }
+.intro.out { opacity: 0; transform: translateY(16px); }
+.intro-top { display: flex; justify-content: flex-end; min-height: 40px; }
+.intro-top .link { font-size: 15px; color: var(--muted); padding: 8px; }
+.intro-card { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; max-width: 420px; width: 100%; margin: 0 auto; min-height: 0; }
+.intro-emo { width: 132px; height: 132px; border-radius: 44px; display: grid; place-items: center; font-size: 64px; margin-bottom: 8px; background: linear-gradient(135deg, color-mix(in srgb, var(--a) 22%, var(--card)), var(--card)); box-shadow: var(--shadow); animation: drift 3.5s ease-in-out infinite; }
+.intro-card h2 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.intro-card p { font-size: 17px; color: var(--muted); line-height: 1.5; }
+.intro-card .code-box { width: 100%; }
+.intro-dots { display: flex; justify-content: center; gap: 8px; padding: 18px 0; }
+.intro-dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--line); transition: width .25s, background .25s; }
+.intro-dots i.on { width: 24px; background: var(--accent); }
+.intro-actions { display: flex; max-width: 420px; width: 100%; margin: 0 auto; }

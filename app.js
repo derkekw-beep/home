@@ -25,6 +25,14 @@ function applyPrefs(saveIt) {
 applyPrefs(false);
 if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyPrefs(false));
 
+// ---- Zoom-Sperre: die App verhält sich wie eine App, nicht wie eine Webseite (immer an) ---------
+// iOS beachtet „user-scalable=no“ allein nicht: Zwei-Finger-Zoom und Doppeltipp-Zoom hier abfangen.
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault());
+{ let last = 0; document.addEventListener('touchend', e => { const now = Date.now(); if (now - last < 320 && !e.target.closest('input, textarea, select')) e.preventDefault(); last = now; }, { passive: false }); }
+
 // ---- kleine Helfer ----------------------------------------------------------------------------
 const $ = (sel, el = document) => el.querySelector(sel);
 const today = () => M.ymd(new Date());
@@ -618,7 +626,46 @@ function openSettings() {
     group('Abgleich', state, h('button', { type: 'button', class: 'btn soft', onclick: async () => { const ok = await store.sync(); toast(ok ? 'Abgeglichen' : 'Gerade keine Verbindung'); } }, 'Jetzt abgleichen')),
     group('Dieses Gerät',
       h('p', { class: 'hint' }, 'Aufs iPhone: in Safari auf „Teilen“ und „Zum Home-Bildschirm“. Die App vom Home-Bildschirm hat einen eigenen Speicher – dort den Paar-Code noch einmal eingeben.'),
+      h('button', { type: 'button', class: 'btn soft', id: 'introAgain', onclick: () => { closeSheet(true); openIntro(false); } }, 'Einführung noch einmal ansehen'),
       confirmBtn('Abmelden', 'Wirklich abmelden? Die Einträge bleiben beim Dienst.', async () => { closeSheet(true); await Push.disable(store); store.leave(); }, 'btn danger wide')));
+}
+
+// ---- Einführung (einmal je Gerät, später unter Einstellungen) -----------------------------------
+const INTRO = [
+  ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“. Datum und Uhrzeit erkennt die App von selbst. Jeder Termin gehört dir, dem anderen oder euch beiden.'],
+  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Die Liste sortiert sich nach Regalen, und was einer abhakt, ist bei beiden abgehakt.'],
+  ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, und Wiederkehrendes springt nach dem Abhaken von selbst auf den nächsten Termin.'],
+  ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen.'],
+  ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das und die Farben findest du oben rechts in den Einstellungen.'],
+];
+const introSeen = () => { try { return localStorage.getItem('zweiplan-intro') === '1'; } catch { return true; } };
+function openIntro(withCode) {
+  document.querySelector('.intro')?.remove();
+  const pages = withCode ? [...INTRO, ['👋', 'Jetzt zu zweit', 'Das ist euer Paar-Code. Auf dem zweiten Handy die App öffnen, „Ich habe einen Paar-Code“ wählen und ihn eintippen. Du findest ihn später in den Einstellungen wieder.']] : INTRO;
+  let i = 0;
+  const card = h('div', { class: 'intro-card' });
+  const dots = h('div', { class: 'intro-dots' });
+  const next = h('button', { type: 'button', class: 'btn primary', id: 'introNext', onclick: () => go(i + 1) });
+  const skip = h('button', { type: 'button', class: 'link', id: 'introSkip', onclick: () => go(withCode ? pages.length - 1 : pages.length) }, 'Überspringen');
+  const wrap = h('div', { class: 'intro', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Einführung' }, h('div', { class: 'intro-top' }, skip), card, dots, h('div', { class: 'intro-actions' }, next));
+  function go(n) {
+    if (n >= pages.length) {
+      try { localStorage.setItem('zweiplan-intro', '1'); } catch { /* egal */ }
+      wrap.classList.add('out');
+      return setTimeout(() => wrap.remove(), 260);
+    }
+    const dir = n < i ? 'in-right' : 'in-left';
+    i = Math.max(0, n);
+    const [emo, title, text] = pages[i], last = i === pages.length - 1;
+    card.replaceChildren(h('div', { class: 'intro-emo' }, emo), h('h2', {}, title), h('p', {}, text), ...(last && withCode ? [codeBox()] : []));
+    dots.replaceChildren(...pages.map((_, k) => h('i', { class: k === i ? 'on' : '' })));
+    next.textContent = last ? 'Los geht’s' : 'Weiter';
+    skip.style.visibility = last ? 'hidden' : '';
+    play(card, dir);
+  }
+  swipe(wrap, () => { if (i < pages.length - 1) go(i + 1); }, () => { if (i > 0) go(i - 1); });
+  document.body.append(wrap);
+  go(0);
 }
 
 // ---- Einrichtung ------------------------------------------------------------------------------
@@ -653,8 +700,7 @@ function setupScreen() {
     if (r !== 'ok') { msg.textContent = TEXT[r] || TEXT.error; return; }
     chooseMe(n);
     render();
-    if (create && store.me) openSheet('Geschafft!', h('p', {}, 'Das ist euer Paar-Code. Auf dem zweiten Handy die App öffnen, „Ich habe einen Paar-Code“ wählen und ihn eintippen.'), codeBox(),
-      h('p', { class: 'hint' }, 'Den Code findest du später unter Einstellungen wieder.'), h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', onclick: () => closeSheet() }, 'Los geht’s')));
+    if (store.me && (create || !introSeen())) openIntro(create);
   }
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone;
   root.replaceChildren(h('div', { class: 'setup' },
@@ -684,6 +730,10 @@ function render() {
   if (!store.cfg) return setupScreen();
   if (!store.me) return whoScreen();
   if (!$('#view')) { buildShell(); setTab(ui.tab); } else update();
+}
+// Wer die App schon eingerichtet hat, sieht die Einführung beim nächsten Start einmal
+function introOnce() {
+  if (store.cfg && store.me && !introSeen() && !document.querySelector('.intro')) openIntro(false);
 }
 
 // Abgleich: kurz nach jeder Änderung, beim Zurückkommen in die App, wenn das Netz wiederkommt,
@@ -764,5 +814,6 @@ if ('serviceWorker' in navigator && (!LOCAL || new URLSearchParams(location.sear
 }
 
 render();
+introOnce();
 if (store.cfg) { store.sync(); connect(); Push.refresh(store); planSoon(); }
 window.zweiplan = { store, ui };   // für die Klicktests
