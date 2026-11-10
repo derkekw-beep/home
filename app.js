@@ -574,7 +574,7 @@ function openTodo(id) {
 
 // ---- Einstellungen ----------------------------------------------------------------------------
 async function shareCode() {
-  const text = `Unser Zweiplan-Code: ${M.fmtCode(store.cfg.code)}\nApp: ${location.origin}${location.pathname}`;
+  const text = `Unser Paar-Code für die Home-App: ${M.fmtCode(store.cfg.code)}\nApp: ${location.origin}${location.pathname}`;
   try {
     if (navigator.share) await navigator.share({ text });
     else { await navigator.clipboard.writeText(text); toast('Kopiert'); }
@@ -705,7 +705,7 @@ function setupScreen() {
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone;
   root.replaceChildren(h('div', { class: 'setup' },
     h('img', { class: 'logo', src: 'icons/icon-192.png', alt: '', width: 88, height: 88 }),
-    h('h1', {}, 'Zweiplan'),
+    h('h1', {}, 'Home'),
     h('p', { class: 'lead' }, 'Ein Kalender, ein Einkaufszettel und eine To-do-Liste – für euch beide, auf beiden Handys gleich.'),
     ios ? h('p', { class: 'hint box' }, 'Tipp: Erst in Safari auf „Teilen“ und „Zum Home-Bildschirm“ tippen, die App von dort öffnen und dann hier weitermachen.') : null,
     name,

@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Zweiplan",
-  "short_name": "Zweiplan",
+  "name": "Home",
+  "short_name": "Home",
   "description": "Gemeinsamer Kalender, Einkaufszettel und To-dos für zwei.",
   "lang": "de",
   "start_url": "./",

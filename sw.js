@@ -2,7 +2,7 @@
 // Die App kommt immer komplett aus dem Cache EINER Version – nie halb alt, halb neu. Eine neue Version
 // wird beim Installieren vollständig geladen, danach lädt sich die App selbst neu.
 // Bei jeder Änderung an der App die Versionsnummer erhöhen (macht tools/deploy.mjs).
-const VERSION = 'zweiplan-v4';
+const VERSION = 'zweiplan-v5';
 const FILES = [
   './',
   './index.html',
@@ -59,7 +59,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('push', event => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; } catch { d = {}; }
-  event.waitUntil(self.registration.showNotification(String(d.title || 'Zweiplan'), {
+  event.waitUntil(self.registration.showNotification(String(d.title || 'Home'), {
     body: String(d.body || 'Es gibt Neues – tippe zum Öffnen.'), tag: d.tag ? `zweiplan-${d.tag}` : undefined,
     icon: './icons/icon-192.png', badge: './icons/icon-192.png', data: { tab: String(d.tab || '') },
   }));

@@ -1,4 +1,4 @@
-/* Zweiplan – warm, ruhig, große Tippflächen. Farben der beiden Personen kommen als --c1/--c2 an die Elemente. */
+/* Home – warm, ruhig, große Tippflächen. Farben der beiden Personen kommen als --c1/--c2 an die Elemente. */
 :root {
   --a: #5046e5;                                    /* Farbthema (data-look) */
   --bg-flat: #f6f3ee; --card: #ffffff; --ink: #1f1b16; --muted: #8a8178; --line: #e9e3da; --soft: #efeae2;
