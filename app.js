@@ -12,12 +12,13 @@ const ui = { tab: 'cal', day: M.ymd(new Date()), month: false, filter: '', follo
 
 // ---- Aussehen (je Gerät): Hell/Dunkel und Farbthema --------------------------------------------
 const LOOKS = [['indigo', 'Indigo', '#5046e5'], ['rose', 'Rosé', '#e64980'], ['wald', 'Wald', '#2b8a3e'], ['ozean', 'Ozean', '#1c7ed6'], ['sonne', 'Sonne', '#e8590c'], ['mokka', 'Mokka', '#8a5a3c'], ['nacht', 'Tinte', '#343a52']];
-const prefs = { theme: 'auto', look: 'indigo' };
+const prefs = { theme: 'auto', look: 'indigo', buddy: 'cute' };   // buddy: 'cute' (süß) | 'plain' (schlicht) | 'off'
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('zweiplan-prefs') || '{}')); } catch { /* Standard */ }
 function applyPrefs(saveIt) {
   const el = document.documentElement;
   if (prefs.theme === 'auto') delete el.dataset.theme; else el.dataset.theme = prefs.theme;
   el.dataset.look = LOOKS.some(l => l[0] === prefs.look) ? prefs.look : 'indigo';
+  el.dataset.buddy = ['cute', 'plain', 'off'].includes(prefs.buddy) ? prefs.buddy : 'cute';
   const bg = getComputedStyle(el).getPropertyValue('--bg-flat').trim();     // Farbe der Statusleiste mitziehen
   if (bg) for (const m of document.querySelectorAll('meta[name=theme-color]')) { m.removeAttribute('media'); m.content = bg; }
   if (saveIt) try { localStorage.setItem('zweiplan-prefs', JSON.stringify(prefs)); } catch { /* egal */ }
@@ -82,6 +83,33 @@ function play(el, cls) {
 // Welche Zeilen gab es beim letzten Zeichnen schon? Neue (und gerade abgehakte) gleiten herein.
 const known = { set: new Set(), next: new Set(), ready: false };
 const knownDone = () => { known.set = known.next; known.next = new Set(); known.ready = true; };
+
+// Der kleine Begleiter oben in der Leiste: schaut sich um, blinzelt, freut sich mit – und zeigt
+// nebenbei, ob der Abgleich klappt (traurig = offline).
+function buddy() {
+  const b = h('button', { class: 'buddy', id: 'buddy', type: 'button', 'aria-label': 'Hallo!', onclick: () => cheer('wink') });
+  b.innerHTML = '<svg viewBox="0 0 44 44" aria-hidden="true">'
+    + '<g class="b-sprout"><path d="M22 9 C22 6 22 5 22 3.5" /><path class="b-leaf" d="M22 4.5 C19 1 15.5 2 15 4.8 C18 6.6 20.5 6 22 4.5 Z"/><path class="b-leaf" d="M22 4.5 C25 1 28.5 2 29 4.8 C26 6.6 23.5 6 22 4.5 Z"/></g>'
+    + '<g class="b-body"><path class="b-face" d="M22 8 C33 8 39.5 15 39.5 25 C39.5 34.5 32.5 40 22 40 C11.5 40 4.5 34.5 4.5 25 C4.5 15 11 8 22 8 Z"/>'
+    + '<ellipse class="b-shine" cx="14" cy="14.5" rx="4.2" ry="2.2" transform="rotate(-28 14 14.5)"/>'
+    + '<g class="b-look"><ellipse class="b-cheek" cx="10.8" cy="28.5" rx="3.3" ry="2.2"/><ellipse class="b-cheek" cx="33.2" cy="28.5" rx="3.3" ry="2.2"/>'
+    + '<g class="b-eyes"><g class="b-eye b-l"><circle cx="15" cy="24" r="3.6"/><circle class="b-glint" cx="13.7" cy="22.5" r="1.35"/><circle class="b-glint" cx="16.3" cy="25.4" r=".6"/></g>'
+    + '<g class="b-eye b-r"><circle cx="29" cy="24" r="3.6"/><circle class="b-glint" cx="27.7" cy="22.5" r="1.35"/><circle class="b-glint" cx="30.3" cy="25.4" r=".6"/></g></g>'
+    + '<g class="b-joy"><path d="M11.6 24.8 Q15 20.4 18.4 24.8"/><path d="M25.6 24.8 Q29 20.4 32.4 24.8"/></g>'
+    + '<path class="b-mouth" d="M19.2 28.6 Q20.6 31 22 28.8 Q23.4 31 24.8 28.6"/><path class="b-frown" d="M19.5 31 Q22 28.6 24.5 31"/><path class="b-smile" d="M15.5 28.5 Q22 34.5 28.5 28.5"/></g></g>'
+    + '<path class="b-heart" d="M37 9.5 c-1.6 -2.6 -5 -.6 -3.4 2 c.8 1.3 2.2 2.2 3.4 3.3 c1.2 -1.1 2.6 -2 3.4 -3.3 c1.6 -2.6 -1.8 -4.6 -3.4 -2 Z"/></svg>';
+  return b;
+}
+let cheerTimer;
+function cheer(cls = 'happy') {
+  const b = $('#buddy');
+  if (!b) return;
+  b.classList.remove('happy', 'wink');
+  void b.offsetWidth;
+  b.classList.add(cls);
+  clearTimeout(cheerTimer);
+  cheerTimer = setTimeout(() => b.classList.remove('happy', 'wink'), 1300);
+}
 
 let toastTimer;
 function toast(text) {
@@ -168,6 +196,7 @@ function buildShell() {
   root.replaceChildren(
     h('header', { class: 'top' },
       h('div', { class: 'top-left', id: 'topLeft' }),
+      buddy(),
       h('div', { class: 'top-right' },
         h('button', { class: 'pill', id: 'btnToday', type: 'button', onclick: () => goDay(today(), true) }, 'Heute'),
         h('button', { class: 'sync', id: 'syncBadge', type: 'button', onclick: openSettings }),
@@ -203,7 +232,7 @@ function update() {
   const left = $('#topLeft');
   if (ui.tab === 'cal') {
     left.replaceChildren(h('button', { class: 'month-btn', id: 'btnMonth', type: 'button', 'aria-expanded': String(ui.month), onclick: () => { ui.month = !ui.month; update(); play($('#calHead .days'), 'in-pop'); } },
-      h('span', {}, fmtDay(ui.day, ui.day.slice(0, 4) === t.slice(0, 4) ? { month: 'long' } : { month: 'long', year: 'numeric' })), icon('down', ui.month ? 'flip' : '')));
+      h('span', {}, fmtDay(ui.day, ui.day.slice(0, 4) === t.slice(0, 4) ? { month: 'long' } : { month: 'short', year: 'numeric' })), icon('down', ui.month ? 'flip' : '')));
   } else {
     left.replaceChildren(h('h1', {}, ui.tab === 'shop' ? 'Einkaufsliste' : 'To-dos'));
   }
@@ -223,6 +252,9 @@ function updateSync() {
   b.textContent = text;
   b.setAttribute('aria-label', label);
   b.dataset.state = cls;
+  b.hidden = cls === 'ok' || cls === 'busy';             // solange alles gut ist, zeigt das der Begleiter
+  const face = $('#buddy');
+  if (face) { face.classList.toggle('sad', cls === 'off' || cls === 'bad'); face.classList.toggle('busy', cls === 'busy'); }
 }
 
 // ---- Kalender ---------------------------------------------------------------------------------
@@ -452,8 +484,10 @@ function toggleDone(it) {
   if (it.t === 'todo' && !it.done && it.rep) {       // wiederkehrende Aufgabe: springt auf den nächsten Termin
     const due = S.nextDue(it.due, it.rep, today());
     store.put({ id: it.id, due });
+    cheer();
     return toast(`Erledigt 🎉 Wieder fällig: ${M.dueLabel(due, today()).text}`);
   }
+  if (!it.done) cheer();
   store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1 } : {}) });
 }
 function row(it, { meta, onOpen, title = it.title, lead }) {
@@ -616,7 +650,8 @@ function openSettings() {
   const state = h('p', { class: 'hint', id: 'syncInfo' }, store.status === 'denied' ? 'Der Dienst kennt diesen Planer nicht (mehr).' : `Zuletzt abgeglichen: ${last}${store.pending ? ` · ${store.pending} Änderung(en) warten` : ''}`);
   openSheet('Einstellungen',
     group('Du', name, colors),
-    group('Aussehen', theme, looks),
+    group('Aussehen', theme, looks,
+      field('Begleiter oben in der Leiste', seg([['cute', '🌱 Süß'], ['plain', '🙂 Schlicht'], ['off', 'Aus']], prefs.buddy, v => { prefs.buddy = v; applyPrefs(true); cheer('wink'); }))),
     group('Mitteilungen',
       h('label', { class: 'switch' }, pushBox, h('span', {}, 'Mitteilungen auf diesem Gerät')),
       can ? h('p', { class: 'hint' }, `Du bekommst Bescheid, wenn ${ot.named ? ot.name : 'der andere'} etwas einträgt, vor Terminen und morgens mit dem Tagesüberblick.`)
@@ -762,7 +797,7 @@ function remoteToast(list) {
     : it.t === 'shop' ? (!old || (old.done && !it.done) ? `🛒 ${who}: „${it.title}“ fehlt` : it.done && !old.done ? `${who} hat „${it.title}“ eingekauft` : null)
     : it.t === 'event' ? (!old ? `🗓️ ${who}: neuer Termin „${it.title}“` : `${who} hat „${it.title}“ geändert`)
     : it.t === 'todo' ? (!old ? `✅ ${who}: neue Aufgabe „${it.title}“` : it.done && !old.done ? `${who} hat „${it.title}“ erledigt` : null) : null;
-  if (text) toast(text);
+  if (text) { toast(text); cheer(); }
 }
 
 // Erinnerungsplan (Termine, Tagesüberblick) beim Dienst ablegen – nur wenn er sich geändert hat
