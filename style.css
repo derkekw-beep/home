@@ -284,3 +284,63 @@ textarea { resize: none; display: block; }
 .looks button i { width: 34px; height: 34px; border-radius: 12px; background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 55%, white)); }
 .looks button.on { border-color: var(--c); color: var(--ink); background: color-mix(in srgb, var(--c) 10%, transparent); }
 .switch input:disabled { opacity: .4; }
+
+/* ---- Bewegung ---- */
+@keyframes inUp { from { opacity: 0; transform: translateY(14px); } }
+@keyframes inLeft { from { opacity: 0; transform: translateX(36px); } }
+@keyframes inRight { from { opacity: 0; transform: translateX(-36px); } }
+@keyframes inPop { from { opacity: 0; transform: scale(.94); } 60% { transform: scale(1.015); } }
+@keyframes rowIn { from { opacity: 0; transform: translateY(-8px) scale(.98); background: var(--accent-soft); } }
+@keyframes checkPop { 0% { transform: scale(.5); } 60% { transform: scale(1.25); } }
+@keyframes strike { from { background-size: 0 2px; } }
+@keyframes badgePop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } }
+@keyframes drift { 50% { transform: translateY(-5px); } }
+.in-up > * { animation: inUp .38s cubic-bezier(.2, .8, .2, 1) backwards; }
+.in-up > :nth-child(2) { animation-delay: .05s; }
+.in-up > :nth-child(3) { animation-delay: .1s; }
+.in-up > :nth-child(n+4) { animation-delay: .14s; }
+.in-left, .in-right { animation: .32s cubic-bezier(.2, .8, .2, 1) backwards; }
+.in-left { animation-name: inLeft; }
+.in-right { animation-name: inRight; }
+.in-pop { animation: inPop .34s cubic-bezier(.2, .8, .2, 1) backwards; }
+#calDay.in-left .timeline > *, #calDay.in-right .timeline > * { animation: inUp .4s cubic-bezier(.2, .8, .2, 1) backwards; }
+#calDay .timeline > :nth-child(2) { animation-delay: .05s; }
+#calDay .timeline > :nth-child(3) { animation-delay: .1s; }
+#calDay .timeline > :nth-child(4) { animation-delay: .15s; }
+#calDay .timeline > :nth-child(n+5) { animation-delay: .2s; }
+.row.new { animation: rowIn .45s cubic-bezier(.2, .8, .2, 1) backwards; }
+.row.new .check.on::before { animation: checkPop .4s cubic-bezier(.3, 1.6, .5, 1); }
+.row.done .row-title { text-decoration: none; background: linear-gradient(currentColor, currentColor) left 55% / 100% 2px no-repeat; display: inline; }
+.row.done .row-main { display: block; }
+.row.new.done .row-title { animation: strike .35s .1s ease-out backwards; }
+.tab .badge.on { animation: badgePop .35s cubic-bezier(.3, 1.6, .5, 1); }
+.tab .ic { transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+.tab.on .ic { transform: translateY(-2px) scale(1.12); }
+.d .n { transition: background .2s, color .2s, transform .2s cubic-bezier(.3, 1.6, .5, 1); }
+.d.sel .n { transform: scale(1.06); }
+.d:active .n { transform: scale(.9); }
+.ev, .chip-ev, .stat, .btn, .quick .add, .chips button, .looks button, .suggest button { transition: transform .15s, opacity .15s, background .2s; }
+.ev:active, .chip-ev:active { transform: scale(.98); }
+.stat:active, .btn:active, .quick .add:active, .chips button:active, .looks button:active, .suggest button:active { transform: scale(.94); }
+.seg button { transition: background .2s, color .2s, box-shadow .2s; }
+.ev-pill { transition: height .3s cubic-bezier(.2, .8, .2, 1); }
+.ev.live .ev-pill { animation: drift 3s ease-in-out infinite; }
+.empty-emo { animation: drift 3.5s ease-in-out infinite; }
+.fab .ic { transition: transform .3s cubic-bezier(.3, 1.6, .5, 1); }
+.fab:active .ic { transform: rotate(90deg); }
+.magic:not([hidden]) { animation: inUp .3s backwards; }
+.emo-grid:not([hidden]) { animation: inPop .25s backwards; }
+.emo-btn { transition: transform .2s cubic-bezier(.3, 1.6, .5, 1); }
+.emo-btn:active { transform: scale(.88) rotate(-8deg); }
+.sheet-body > * { animation: inUp .4s cubic-bezier(.2, .8, .2, 1) backwards; }
+.sheet-body > :nth-child(2) { animation-delay: .04s; }
+.sheet-body > :nth-child(3) { animation-delay: .08s; }
+.sheet-body > :nth-child(n+4) { animation-delay: .12s; }
+.setup > * { animation: inUp .5s cubic-bezier(.2, .8, .2, 1) backwards; }
+.setup > :nth-child(2) { animation-delay: .06s; }
+.setup > :nth-child(3) { animation-delay: .12s; }
+.setup > :nth-child(n+4) { animation-delay: .18s; }
+.setup .logo { animation: inPop .6s cubic-bezier(.3, 1.6, .5, 1) backwards; }
+:root { transition: background-color .3s; }
+body, .card, .set-body, .tabs, .sheet, .today-card { transition: background-color .3s, color .3s; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

@@ -64,6 +64,17 @@ function icon(name, cls = '') {
   return s;
 }
 
+// Bewegung: eine Klasse kurz setzen, damit die zugehörige CSS-Animation (neu) abläuft
+function play(el, cls) {
+  if (!el) return;
+  el.classList.remove('in-up', 'in-left', 'in-right', 'in-pop');
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+// Welche Zeilen gab es beim letzten Zeichnen schon? Neue (und gerade abgehakte) gleiten herein.
+const known = { set: new Set(), next: new Set(), ready: false };
+const knownDone = () => { known.set = known.next; known.next = new Set(); known.ready = true; };
+
 let toastTimer;
 function toast(text) {
   let t = $('#toast');
@@ -150,7 +161,7 @@ function buildShell() {
     h('header', { class: 'top' },
       h('div', { class: 'top-left', id: 'topLeft' }),
       h('div', { class: 'top-right' },
-        h('button', { class: 'pill', id: 'btnToday', type: 'button', onclick: () => { ui.day = today(); ui.follow = true; update(); } }, 'Heute'),
+        h('button', { class: 'pill', id: 'btnToday', type: 'button', onclick: () => goDay(today(), true) }, 'Heute'),
         h('button', { class: 'sync', id: 'syncBadge', type: 'button', onclick: openSettings }),
         h('button', { class: 'icon-btn', id: 'btnSettings', type: 'button', 'aria-label': 'Einstellungen', onclick: openSettings }, icon('more')))),
     h('main', { id: 'view' }),
@@ -166,7 +177,9 @@ function setTab(id) {
   v.className = `view-${id}`;
   views[id].mount(v);
   v.scrollTop = 0;
+  known.ready = false;
   update();
+  play(v, 'in-up');
 }
 
 function update() {
@@ -181,7 +194,7 @@ function update() {
   $('#btnToday').hidden = ui.tab !== 'cal' || ui.day === t;
   const left = $('#topLeft');
   if (ui.tab === 'cal') {
-    left.replaceChildren(h('button', { class: 'month-btn', id: 'btnMonth', type: 'button', 'aria-expanded': String(ui.month), onclick: () => { ui.month = !ui.month; update(); } },
+    left.replaceChildren(h('button', { class: 'month-btn', id: 'btnMonth', type: 'button', 'aria-expanded': String(ui.month), onclick: () => { ui.month = !ui.month; update(); play($('#calHead .days'), 'in-pop'); } },
       h('span', {}, fmtDay(ui.day, ui.day.slice(0, 4) === t.slice(0, 4) ? { month: 'long' } : { month: 'long', year: 'numeric' })), icon('down', ui.month ? 'flip' : '')));
   } else {
     left.replaceChildren(h('h1', {}, ui.tab === 'shop' ? 'Einkaufsliste' : 'To-dos'));
@@ -206,8 +219,18 @@ function updateSync() {
 
 // ---- Kalender ---------------------------------------------------------------------------------
 const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-function moveDay(n) { ui.day = M.addDays(ui.day, n); ui.follow = ui.day === today(); update(); }
-function moveMonth(n) { ui.day = M.addMonths(ui.day, n); ui.follow = ui.day === today(); update(); }
+function goDay(d, closeMonth) {
+  const dir = d > ui.day ? 'in-left' : d < ui.day ? 'in-right' : '';
+  const wasWeek = M.mondayOf(ui.day), wasMonth = ui.day.slice(0, 7), hadMonth = ui.month;
+  ui.day = d; ui.follow = d === today();
+  if (closeMonth) ui.month = false;
+  update();
+  if (dir) play($('#calDay'), dir);
+  if (hadMonth !== ui.month) play($('#calHead .days'), 'in-pop');
+  else if (dir && (ui.month ? wasMonth !== d.slice(0, 7) : wasWeek !== M.mondayOf(d))) play($('#calHead .days'), dir);
+}
+function moveDay(n) { goDay(M.addDays(ui.day, n)); }
+function moveMonth(n) { goDay(M.addMonths(ui.day, n)); }
 
 views.cal = {
   mount(v) {
@@ -226,7 +249,7 @@ views.cal = {
       const out = ui.month && Number(d.slice(5, 7)) !== m;
       return h('button', { type: 'button', class: `d${d === ui.day ? ' sel' : ''}${d === t ? ' today' : ''}${out ? ' out' : ''}`, 'data-day': d,
         'aria-label': fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (evs.length ? `, ${evs.length} Termine` : ''),
-        onclick: () => { ui.day = d; ui.follow = d === t; ui.month = false; update(); } },
+        onclick: () => goDay(d, true) },
         h('span', { class: 'n' }, String(Number(d.slice(8)))), h('span', { class: 'dots' }, dots.slice(0, 4)));
     };
     $('#calHead').replaceChildren(...[
@@ -306,7 +329,7 @@ function todayCard(events) {
     h('div', { class: 'stat-row' },
       h('button', { type: 'button', class: 'stat', onclick: () => setTab('shop') }, openShop ? `🛒 ${openShop} ${openShop === 1 ? 'fehlt' : 'fehlen'}` : '🛒 Liste leer'),
       h('button', { type: 'button', class: 'stat', onclick: () => setTab('todo') }, due ? `✅ ${due} fällig` : '✅ nichts fällig'),
-      S.countdowns(events, t).map(c => h('button', { type: 'button', class: 'stat count', onclick: () => { ui.day = c.date; ui.follow = false; update(); } }, `${c.ev.icon || '📌'} ${c.ev.title} ${S.daysText(c.days)}`))),
+      S.countdowns(events, t).map(c => h('button', { type: 'button', class: 'stat count', onclick: () => goDay(c.date) }, `${c.ev.icon || '📌'} ${c.ev.title} ${S.daysText(c.days)}`))),
     theirs && theirs.text ? h('div', { class: 'zettel' }, h('span', { class: 'emo' }, '💌'), h('span', {}, h('b', {}, `${ot.name}: `), theirs.text)) : null,
     ot.named ? h('button', { type: 'button', class: 'zettel-btn', id: 'zettelBtn', onclick: openZettel }, mine && mine.text ? `Dein Zettel: „${mine.text}“` : `💬 Zettel für ${ot.name} schreiben`)
       : h('button', { type: 'button', class: 'zettel-btn', onclick: openSettings }, '👋 Zweites Handy verbinden: Paar-Code anzeigen'),
@@ -399,9 +422,11 @@ function openEvent(id, preset) {
   const save = () => {
     const t = (old ? f.title : quick.title || '').trim();
     if (!t) { title.classList.add('err'); title.focus(); return; }
-    store.put({ ...(old ? { id: old.id } : { by: store.me }), t: 'event', title: t, icon: f.icon, date: f.date, allDay: !!f.allDay, start: f.start, dur: f.dur, who: f.who, rep: f.rep || '', until: f.until || '', pin: !!f.pin, rem: f.rem, note: (f.note || '').trim() });
+    const fields = { ...(old ? { id: old.id } : { by: store.me }), t: 'event', title: t, icon: f.icon, date: f.date, allDay: !!f.allDay, start: f.start, dur: f.dur, who: f.who, rep: f.rep || '', until: f.until || '', pin: !!f.pin, rem: f.rem, note: (f.note || '').trim() };
+    const it = store.put(Object.assign(fields));
     ui.day = f.date; ui.follow = f.date === today();
     closeSheet(); update();
+    play($(`.ev[data-id="${it.id}"], .chip-ev[data-id="${it.id}"]`), 'in-pop');
   };
   openSheet(old ? 'Termin bearbeiten' : 'Neuer Termin',
     h('div', { class: 'title-row' }, iconBtn, title), magic, grid,
@@ -424,7 +449,9 @@ function toggleDone(it) {
   store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1 } : {}) });
 }
 function row(it, { meta, onOpen, title = it.title, lead }) {
-  return h('div', { class: `row${it.done ? ' done' : ''}`, 'data-id': it.id },
+  const key = `${it.id}:${it.done ? 1 : 0}`, fresh = known.ready && !known.set.has(key);
+  known.next.add(key);
+  return h('div', { class: `row${it.done ? ' done' : ''}${fresh ? ' new' : ''}`, 'data-id': it.id },
     h('button', { type: 'button', class: `check${it.done ? ' on' : ''}`, 'aria-label': it.done ? `${it.title} wieder öffnen` : `${it.title} abhaken`, 'aria-pressed': String(!!it.done), onclick: () => toggleDone(it) }, it.done ? icon('check') : null),
     h('button', { type: 'button', class: 'row-main', onclick: onOpen }, h('span', { class: 'row-title' }, lead ? h('b', { class: 'qty' }, lead) : null, title), meta && meta.length ? h('span', { class: 'row-meta' }, meta) : null));
 }
@@ -467,6 +494,7 @@ views.shop = {
     if (done.length) kids.push(...section(`Erledigt (${done.length})`,
       confirmBtn('Aufräumen', 'Alle entfernen?', () => { for (const i of done) store.remove(i.id); toast('Erledigte entfernt'); }, 'link'), done.map(mk)));
     $('#shopList').replaceChildren(...kids);
+    knownDone();
   },
 };
 
@@ -510,6 +538,7 @@ views.todo = {
       ? confirmBtn('Aufräumen', 'Alle entfernen?', () => { for (const x of store.all('todo').filter(x => x.done)) store.remove(x.id); toast('Erledigte entfernt'); }, 'link') : null, g.items.map(mk)).map(el => (el.classList.add(`g-${g.key}`), el)));
     if (!groups.some(g => g.key !== 'done')) kids.unshift(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '✅'), h('p', {}, ui.filter ? 'Hier ist nichts offen.' : 'Nichts offen. Schreib oben eine Aufgabe auf.')));
     $('#todoList').replaceChildren(...kids);
+    knownDone();
   },
 };
 
