@@ -444,3 +444,91 @@ body, .card, .set-body, .tabs, .sheet, .today-card { transition: background-colo
 .news-item .emo { font-size: 24px; line-height: 1.2; }
 .news-item b { font-size: 16px; }
 .news-item p { font-size: 14px; color: var(--muted); margin-top: 2px; }
+
+/* ---- Mehrtägige Termine: Balken unter den Tagen ---- */
+.d { position: relative; }
+.d .bar { position: absolute; left: -2px; right: -2px; bottom: 0; height: 4px; background: linear-gradient(90deg, var(--c1), var(--c2)); opacity: .85; }
+.d .bar.first { left: 20%; border-radius: 2px 0 0 2px; }
+.d .bar.last { right: 20%; border-radius: 0 2px 2px 0; }
+.d .bar.first.last { border-radius: 2px; }
+button.gap { width: calc(100% - 46px); text-align: left; }
+button.gap:active span { color: var(--accent); }
+
+/* ---- Einkauf: Unteransichten, Einkaufsmodus, Vorrat, Rezepte ---- */
+#shopTabs { margin-bottom: 12px; }
+.store-btn { margin-bottom: 12px; }
+.pill.small { font-size: 13px; padding: 7px 11px; margin-right: 10px; white-space: nowrap; flex: none; }
+.pill.there { background: var(--soft); color: var(--muted); }
+.pad-l { padding-left: 16px; }
+.hint.pad { margin: 0 4px 10px; }
+.store-head { display: flex; justify-content: space-between; align-items: center; margin: 2px 2px 10px; font-size: 20px; }
+.store-head .hint { font-size: 14px; }
+.progress { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; margin-bottom: 14px; }
+.progress i { display: block; height: 100%; border-radius: 4px; background: var(--ok); transition: width .4s cubic-bezier(.2, .8, .2, 1); }
+.store .row { min-height: 72px; }
+.store .row-title { font-size: 21px; font-weight: 650; }
+.store .check { width: 68px; height: 72px; }
+.store .check::before { width: 34px; height: 34px; }
+.btn.file { position: relative; overflow: hidden; }
+.btn.file input { position: absolute; inset: 0; opacity: 0; min-height: 0; }
+
+/* ---- To-dos: Unterpunkte, Rückblick ---- */
+.subs { display: flex; flex-direction: column; background: var(--card); border-radius: 14px; overflow: hidden; }
+.subs:empty { display: none; }
+.sub { display: flex; align-items: center; min-height: 46px; }
+.sub + .sub { border-top: 1px solid var(--line); }
+.sub .check { width: 48px; height: 46px; }
+.sub .check::before { width: 22px; height: 22px; }
+.sub.done .grow { text-decoration: line-through; color: var(--muted); }
+#reviewBtn { margin-top: 6px; }
+.review { border-left: 5px solid var(--c); }
+.review-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 18px; }
+.review-n { font-size: 30px; font-weight: 800; color: var(--c); }
+
+/* ---- Kalender: Kopf des Tages, Wochenübersicht, Feiertage ---- */
+.day-title { align-items: center; min-height: 40px; }
+.day-title .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.mini { display: flex; background: var(--soft); border-radius: 10px; padding: 3px; }
+.mini button { padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.mini button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.icon-btn.small { width: 36px; height: 36px; }
+.icon-btn.small .ic { width: 20px; height: 20px; }
+.hol-name { font-style: normal; color: var(--danger); font-weight: 700; font-size: 13px; }
+.d.hol .n { color: var(--danger); }
+.d.hol.sel .n { color: var(--bg); }
+.agenda { display: flex; flex-direction: column; gap: 10px; }
+.ag-day { display: grid; grid-template-columns: 58px 1fr; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+.ag-day.past { opacity: .55; }
+.ag-day.today { box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
+.ag-head { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 10px 4px; background: color-mix(in srgb, var(--soft) 60%, transparent); }
+.ag-head b { font-size: 20px; font-weight: 800; }
+.ag-wd { font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+.ag-wd.hol { color: var(--danger); }
+.ag-head .hol-name { font-size: 10px; text-align: center; line-height: 1.1; }
+.now-tag { background: var(--accent); color: var(--accent-ink); font-size: 10px; padding: 2px 6px; }
+.ag-list { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 4px 0; }
+.ag-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 0; width: 100%; }
+.ag-row + .ag-row { border-top: 1px solid var(--line); }
+.ag-time { width: 62px; flex: none; font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ag-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.ag-row .dot { width: 9px; height: 9px; }
+.ag-free { padding: 12px; color: var(--muted); font-size: 14px; text-align: left; opacity: .7; }
+.fold { margin: 0 0 6px 46px; padding: 9px 12px; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 13px; font-weight: 700; width: calc(100% - 46px); }
+/* Heute-Karte: einklappen */
+.today-card { position: relative; }
+.card-fold { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; display: grid; place-items: center; color: var(--muted); border-radius: 50%; z-index: 1; }
+.card-fold .ic { width: 20px; height: 20px; transition: transform .2s; }
+.today-card.small { padding: 12px 44px 12px 14px; gap: 8px; }
+.today-card.small .next { font-size: 16px; }
+.today-card .hello { padding-right: 36px; }
+/* Termin-Fenster: Überschneidung */
+.clash { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--danger) 12%, transparent); font-size: 14px; font-weight: 600; }
+.clash .link { font-size: 14px; white-space: nowrap; background: var(--card); border-radius: 99px; padding: 6px 10px; }
+/* Suche */
+.results .result { width: 100%; padding-left: 14px; gap: 12px; }
+.results .result .row-main { padding-left: 0; }
+.pad-all { padding: 14px; }
+
+.intro-card p { font-size: 16px; }
+@media (max-height: 700px) { .intro-emo { width: 96px; height: 96px; font-size: 46px; border-radius: 32px; } .intro-card h2 { font-size: 22px; } .intro-card p { font-size: 15px; } }

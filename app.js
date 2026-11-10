@@ -1,6 +1,7 @@
 // Oberfläche des Planers: Kalender (Zeitstrahl + Monat), Einkaufsliste, To-dos, Einstellungen, Einrichtung.
 import * as M from './model.js';
 import * as S from './smart.js';
+import * as X from './extra.js';
 import { createStore } from './store.js';
 import { API, LOCAL } from './config.js';
 import * as Push from './push.js';
@@ -12,7 +13,7 @@ const ui = { tab: 'cal', day: M.ymd(new Date()), month: false, filter: '', follo
 
 // ---- Aussehen (je Gerät): Hell/Dunkel und Farbthema --------------------------------------------
 const LOOKS = [['indigo', 'Indigo', '#5046e5'], ['rose', 'Rosé', '#e64980'], ['wald', 'Wald', '#2b8a3e'], ['ozean', 'Ozean', '#1c7ed6'], ['sonne', 'Sonne', '#e8590c'], ['mokka', 'Mokka', '#8a5a3c'], ['nacht', 'Tinte', '#343a52']];
-const prefs = { theme: 'auto', look: 'indigo', buddy: 'cute' };   // buddy: 'cute' (süß) | 'plain' (schlicht) | 'off'
+const prefs = { theme: 'auto', look: 'indigo', buddy: 'cute', start: 'cal', card: 'open', mode: 'day' };   // buddy: 'cute' (süß) | 'plain' (schlicht) | 'off'
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('zweiplan-prefs') || '{}')); } catch { /* Standard */ }
 function applyPrefs(saveIt) {
   const el = document.documentElement;
@@ -24,6 +25,8 @@ function applyPrefs(saveIt) {
   if (saveIt) try { localStorage.setItem('zweiplan-prefs', JSON.stringify(prefs)); } catch { /* egal */ }
 }
 applyPrefs(false);
+if (!new URLSearchParams(location.search).get('tab') && ['cal', 'shop', 'todo'].includes(prefs.start)) ui.tab = prefs.start;
+ui.mode = prefs.mode === 'week' ? 'week' : 'day';
 if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyPrefs(false));
 
 // ---- Zoom-Sperre: die App verhält sich wie eine App, nicht wie eine Webseite (immer an) ---------
@@ -73,6 +76,7 @@ const ICON = {
   right: '<path d="M9.5 6l6 6-6 6"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   repeat: '<path d="M4 11V9a3 3 0 013-3h11l-2.5-2.5M20 13v2a3 3 0 01-3 3H6l2.5 2.5"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
 };
 function icon(name, cls = '') {
   const s = h('span', { class: `ic ${cls}`, 'aria-hidden': 'true' });
@@ -116,6 +120,16 @@ function cheer(cls = 'happy') {
   b.classList.add(cls);
   clearTimeout(cheerTimer);
   cheerTimer = setTimeout(() => b.classList.remove('happy', 'wink'), 1300);
+}
+
+async function giveFile(name, text, type) {
+  try {
+    const file = new File([text], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
 
 let toastTimer;
@@ -215,6 +229,7 @@ function buildShell() {
 }
 
 function setTab(id) {
+  if (id !== 'shop' && ui.store) { ui.store = false; if (wake) { wake.release().catch(() => {}); wake = null; } }
   ui.tab = id;
   const v = $('#view');
   v.replaceChildren();
@@ -269,7 +284,7 @@ const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 function goDay(d, closeMonth) {
   const dir = d > ui.day ? 'in-left' : d < ui.day ? 'in-right' : '';
   const wasWeek = M.mondayOf(ui.day), wasMonth = ui.day.slice(0, 7), hadMonth = ui.month;
-  ui.day = d; ui.follow = d === today();
+  ui.day = d; ui.follow = d === today(); ui.showPast = false;
   if (closeMonth) ui.month = false;
   update();
   if (dir) play($('#calDay'), dir);
@@ -277,13 +292,14 @@ function goDay(d, closeMonth) {
   else if (dir && (ui.month ? wasMonth !== d.slice(0, 7) : wasWeek !== M.mondayOf(d))) play($('#calHead .days'), dir);
 }
 function moveDay(n) { goDay(M.addDays(ui.day, n)); }
+function setMode(m) { ui.mode = m; prefs.mode = m; applyPrefs(true); update(); play($('#calDay'), 'in-up'); }
 function moveMonth(n) { goDay(M.addMonths(ui.day, n)); }
 
 views.cal = {
   mount(v) {
     v.append(h('div', { id: 'calHead' }), h('div', { id: 'calDay' }));
     swipe($('#calHead'), () => (ui.month ? moveMonth(1) : moveDay(7)), () => (ui.month ? moveMonth(-1) : moveDay(-7)));
-    swipe($('#calDay'), () => moveDay(1), () => moveDay(-1));
+    swipe($('#calDay'), () => moveDay(ui.mode === 'week' ? 7 : 1), () => moveDay(ui.mode === 'week' ? -7 : -1));
   },
   update() {
     const t = today(), events = store.all('event'), todos = store.all('todo').filter(x => !x.done && x.due);
@@ -291,13 +307,15 @@ views.cal = {
     const days = ui.month ? M.monthGrid(y, m) : M.weekOf(ui.day);
     const dayBtn = d => {
       const evs = M.eventsOn(events, d);
-      const dots = evs.slice(0, 3).map(e => h('i', { class: 'dot', style: whoVars(e.who) }));
+      const span = evs.find(e => e.allDay && e.days > 1);          // mehrtägig: durchgehender Balken
+      const dots = evs.filter(e => e !== span).slice(0, 3).map(e => h('i', { class: 'dot', style: whoVars(e.who) }));
       if (todos.some(x => x.due === d)) dots.push(h('i', { class: 'dot hollow' }));
       const out = ui.month && Number(d.slice(5, 7)) !== m;
-      return h('button', { type: 'button', class: `d${d === ui.day ? ' sel' : ''}${d === t ? ' today' : ''}${out ? ' out' : ''}`, 'data-day': d,
+      return h('button', { type: 'button', class: `d${d === ui.day ? ' sel' : ''}${d === t ? ' today' : ''}${out ? ' out' : ''}${X.isFree(d) ? ' hol' : ''}`, 'data-day': d,
         'aria-label': fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' }) + (evs.length ? `, ${evs.length} Termine` : ''),
         onclick: () => goDay(d, true) },
-        h('span', { class: 'n' }, String(Number(d.slice(8)))), h('span', { class: 'dots' }, dots.slice(0, 4)));
+        h('span', { class: 'n' }, String(Number(d.slice(8)))), h('span', { class: 'dots' }, dots.slice(0, 4)),
+        span ? h('i', { class: `bar${X.spanText(span, d).startsWith('Tag 1 ') ? ' first' : ''}${M.occursOn(span, M.addDays(d, 1)) ? '' : ' last'}`, style: whoVars(span.who) }) : null);
     };
     $('#calHead').replaceChildren(...[
       ui.month ? h('div', { class: 'month-nav' },
@@ -311,13 +329,24 @@ views.cal = {
     const due = todos.filter(x => x.due === ui.day);
     const diff = M.dayDiff(t, ui.day);
     const rel = diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : diff === -1 ? 'Gestern' : '';
-    const kids = [h('div', { class: 'day-title' }, rel ? h('b', {}, rel) : null, h('span', {}, fmtDay(ui.day, { weekday: 'long', day: 'numeric', month: 'long' })))];
+    const week = M.weekOf(ui.day), hol = X.holidayOn(ui.day);
+    const tools = h('div', { class: 'day-tools' },
+      seg([['day', 'Tag'], ['week', 'Woche']], ui.mode, setMode, 'mini'),
+      h('button', { type: 'button', class: 'icon-btn small', id: 'searchBtn', 'aria-label': 'Suchen', onclick: openSearch }, icon('search')));
+    if (ui.mode === 'week') {
+      $('#calDay').replaceChildren(
+        h('div', { class: 'day-title' }, h('b', {}, `KW ${X.isoWeek(ui.day)}`), h('span', { class: 'grow' }, `${Number(week[0].slice(8))}.${week[0].slice(5, 7) === week[6].slice(5, 7) ? '' : ` ${fmtDay(week[0], { month: 'short' })}`} – ${fmtDay(week[6], { day: 'numeric', month: 'long' })}`), tools),
+        agenda(week, events, todos, t));
+      return;
+    }
+    const kids = [h('div', { class: 'day-title' }, rel ? h('b', {}, rel) : null,
+      h('span', { class: 'grow' }, fmtDay(ui.day, { weekday: rel ? 'short' : 'long', day: 'numeric', month: 'long' }), hol ? h('em', { class: 'hol-name' }, ` · ${hol}`) : null), tools)];
     if (ui.day === t) kids.push(todayCard(events));
 
     if (allDay.length || due.length) {
       kids.push(h('div', { class: 'allday' },
         allDay.map(e => h('button', { type: 'button', class: 'chip-ev', style: whoVars(e.who), 'data-id': e.id, onclick: () => openEvent(e.id) },
-          h('span', { class: 'emo' }, e.icon || '📌'), h('span', { class: 'grow' }, e.title), e.rep ? icon('repeat', 'small') : null)),
+          h('span', { class: 'emo' }, e.icon || '📌'), h('span', { class: 'grow' }, X.evTitle(e, ui.day)), X.spanText(e, ui.day) ? h('span', { class: 'tag' }, X.spanText(e, ui.day)) : null, e.rep ? icon('repeat', 'small') : null)),
         due.map(x => h('div', { class: 'chip-todo', 'data-id': x.id },
           h('button', { type: 'button', class: 'check', 'aria-label': `${x.title} erledigen`, onclick: () => toggleDone(x) }),
           h('button', { type: 'button', class: 'grow', onclick: () => openTodo(x.id) }, x.title), h('span', { class: 'tag' }, 'To-do')))));
@@ -331,10 +360,14 @@ views.cal = {
       let nowShown = ui.day !== t;
       const line = () => { nowShown = true; return h('div', { class: 'now' }, h('span', {}, `Jetzt · ${M.fmtTime(now)}`)); };
       const tl = h('div', { class: 'timeline' });
+      const gone = ui.day === t ? timed.filter(e => (e.start || 0) + (e.dur || 0) <= now).length : 0;
+      const fold = gone >= 2 && !ui.showPast;                    // heute schon Vorbeigegangenes zusammenfalten
+      if (fold) tl.append(h('button', { type: 'button', class: 'fold', id: 'foldBtn', onclick: () => { ui.showPast = true; update(); } }, `✓ ${gone} Termine sind schon vorbei · anzeigen`));
       for (const r of M.dayPlan(timed)) {
+        if (fold && (r.kind === 'gap' ? r.to <= now : r.end <= now)) continue;
         if (r.kind === 'gap') {
           if (!nowShown && now >= r.from && now < r.to) tl.append(line());
-          tl.append(h('div', { class: 'gap' }, h('span', {}, `${M.fmtDur(r.min)} frei`)));
+          tl.append(h('button', { type: 'button', class: 'gap', 'aria-label': `Freie Zeit ab ${M.fmtTime(r.from)}: Termin eintragen`, onclick: () => openEvent(null, { start: r.from, dur: Math.min(60, r.min) }) }, h('span', {}, `＋ ${M.fmtDur(r.min)} frei`)));
           continue;
         }
         const e = r.ev, live = ui.day === t && now >= r.start && now < r.end, past = ui.day < t || (ui.day === t && r.end <= now);
@@ -345,7 +378,7 @@ views.cal = {
           h('span', { class: 'ev-time' }, M.fmtTime(r.start)),
           h('span', { class: 'ev-rail' }, h('span', { class: 'ev-pill' }, e.icon || '📌')),
           h('span', { class: 'ev-body' },
-            h('span', { class: 'ev-title' }, e.title, e.rep ? icon('repeat', 'small') : null),
+            h('span', { class: 'ev-title' }, X.evTitle(e, ui.day), e.rep ? icon('repeat', 'small') : null),
             h('span', { class: 'ev-sub' }, sub, live ? h('b', { class: 'live-tag' }, 'läuft') : null),
             h('span', { class: 'ev-meta' }, whoTag(e.who), r.overlap ? h('span', { class: 'warn' }, 'überschneidet sich') : null),
             e.note ? h('span', { class: 'ev-note' }, e.note) : null)));
@@ -368,7 +401,14 @@ function todayCard(events) {
   try { hidden = localStorage.getItem('zweiplan-idee') || ''; } catch { /* egal */ }
   const n = free ? M.dayDiff(t, free) : 0;
   const when = n === 0 ? 'Heute Abend' : n === 1 ? 'Morgen Abend' : `Am ${fmtDay(free || t, { weekday: 'long' })}abend`;
-  return h('section', { class: 'today-card', style: whoVars('both') },
+  const small = prefs.card === 'small';
+  const fold = h('button', { type: 'button', class: 'card-fold', id: 'cardFold', 'aria-label': small ? 'Karte aufklappen' : 'Karte einklappen', 'aria-expanded': String(!small), onclick: () => { prefs.card = small ? 'open' : 'small'; applyPrefs(true); update(); } }, icon('down', small ? '' : 'flip'));
+  if (small) return h('section', { class: 'today-card small', style: whoVars('both') }, fold,
+    h('div', { class: 'next' }, next
+      ? [h('span', { class: 'emo' }, next.ev.icon || '📌'), h('span', {}, h('b', {}, next.ev.title), next.live ? ` läuft noch ${M.fmtDur(next.min)}` : ` ${S.inText(next.min)}`)]
+      : 'Heute steht nichts mehr im Kalender.'),
+    theirs && theirs.text ? h('div', { class: 'zettel' }, h('span', { class: 'emo' }, '💌'), h('span', {}, h('b', {}, `${ot.name}: `), theirs.text)) : null);
+  return h('section', { class: 'today-card', style: whoVars('both') }, fold,
     h('div', { class: 'hello' }, `${S.greeting(new Date().getHours())}, ${me.name}`),
     h('div', { class: 'next' }, next
       ? [h('span', { class: 'emo' }, next.ev.icon || '📌'), h('span', {}, h('b', {}, next.ev.title), next.live ? ` läuft noch ${M.fmtDur(next.min)}` : ` ${S.inText(next.min)}`)]
@@ -385,6 +425,51 @@ function todayCard(events) {
       h('span', { class: 'grow' }, `💡 ${when} ist noch frei.`),
       h('button', { type: 'button', class: 'link', onclick: () => openEvent(null, { date: free, start: 19 * 60, dur: 120, who: 'both', icon: '❤️' }) }, 'Planen'),
       h('button', { type: 'button', class: 'link muted', 'aria-label': 'Hinweis ausblenden', onclick: () => { try { localStorage.setItem('zweiplan-idee', free); } catch { /* egal */ } update(); } }, '✕')) : null);
+}
+
+// Wochenübersicht: sieben Tage untereinander, jeder Termin eine Zeile
+function agenda(week, events, todos, t) {
+  return h('div', { class: 'agenda' }, week.map(d => {
+    const evs = M.eventsOn(events, d), due = todos.filter(x => x.due === d), hol = X.holidayOn(d);
+    return h('section', { class: `ag-day${d === t ? ' today' : ''}${d < t ? ' past' : ''}`, 'data-day': d },
+      h('button', { type: 'button', class: 'ag-head', 'aria-label': `${fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' })} öffnen`, onclick: () => { ui.mode = 'day'; prefs.mode = 'day'; applyPrefs(true); goDay(d, true); if (d === ui.day) update(); } },
+        h('span', { class: `ag-wd${X.isFree(d) ? ' hol' : ''}` }, fmtDay(d, { weekday: 'short' }).replace('.', '')), h('b', {}, String(Number(d.slice(8)))),
+        d === t ? h('span', { class: 'tag now-tag' }, 'Heute') : null, hol ? h('span', { class: 'hol-name' }, hol) : null),
+      h('div', { class: 'ag-list' },
+        evs.map(e => h('button', { type: 'button', class: 'ag-row', style: whoVars(e.who), 'data-id': e.id, onclick: () => openEvent(e.id) },
+          h('span', { class: 'ag-time' }, e.allDay ? (X.spanText(e, d).replace(' von ', '/') || 'ganztägig') : M.fmtTime(e.start || 0)), h('i', { class: 'dot' }),
+          h('span', { class: 'ag-title' }, `${e.icon || '📌'} ${X.evTitle(e, d)}`))),
+        due.map(x => h('button', { type: 'button', class: 'ag-row todo', 'data-id': x.id, onclick: () => openTodo(x.id) },
+          h('span', { class: 'ag-time' }, 'To-do'), h('i', { class: 'dot hollow' }), h('span', { class: 'ag-title' }, x.title))),
+        !evs.length && !due.length ? h('button', { type: 'button', class: 'ag-free', 'aria-label': 'Termin eintragen', onclick: () => openEvent(null, { date: d, start: 9 * 60 }) }, 'frei · ＋') : null));
+  }));
+}
+
+// Suche über alles: Termine, Aufgaben, Einkäufe, Vorrat, Rezepte
+function openSearch() {
+  const out = h('div', { class: 'card results', id: 'searchOut' });
+  const LABEL = { todo: 'To-do', shop: 'Einkaufsliste', stock: 'Vorrat', recipe: 'Rezept' };
+  const go = hit => {
+    closeSheet(true);
+    if (hit.kind === 'event') { ui.mode = 'day'; if (ui.tab !== 'cal') setTab('cal'); goDay(hit.day, true); update(); play($(`[data-id="${hit.it.id}"]`), 'in-pop'); }
+    else if (hit.kind === 'todo') { setTab('todo'); openTodo(hit.it.id); }
+    else { ui.shop = hit.kind === 'shop' ? 'list' : hit.kind; setTab('shop'); }
+  };
+  const draw = () => {
+    const hits = X.search(store.everything(), input.value, today());
+    out.hidden = input.value.trim().length < 2;
+    out.replaceChildren(...(hits.length ? hits.map(hit => h('button', { type: 'button', class: 'row result', onclick: () => go(hit) },
+      h('span', { class: 'emo' }, hit.kind === 'event' ? hit.it.icon || '📌' : { todo: '✅', shop: '🛒', stock: '🫙', recipe: '📖' }[hit.kind]),
+      h('span', { class: 'row-main' }, h('span', { class: 'row-title' }, hit.kind === 'event' ? X.evTitle(hit.it, hit.day) : hit.it.title),
+        h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, hit.kind === 'event'
+          ? `${fmtDay(hit.day, { weekday: 'short', day: 'numeric', month: 'short', year: hit.day.slice(0, 4) === today().slice(0, 4) ? undefined : 'numeric' })}${hit.it.allDay ? '' : ` · ${M.fmtTime(hit.it.start || 0)}`}${hit.day < today() ? ' · vorbei' : ''}`
+          : `${LABEL[hit.kind]}${hit.it.done ? ' · erledigt' : hit.day ? ` · ${M.dueLabel(hit.day, today()).text}` : ''}`)))))
+      : [h('p', { class: 'hint pad-all' }, 'Nichts gefunden.')]));
+  };
+  const input = h('input', { type: 'text', class: 'title-in', id: 'searchIn', placeholder: 'Termin, Aufgabe, Einkauf …', maxLength: 60, enterKeyHint: 'search', autocomplete: 'off', 'aria-label': 'Suchen', oninput: draw });
+  out.hidden = true;
+  openSheet('Suchen', h('div', { class: 'title-row' }, input), out);
+  setTimeout(() => input.focus(), 60);
 }
 
 // Einmaliges Angebot auf der Heute-Karte: Mitteilungen einschalten
@@ -428,7 +513,7 @@ function openEvent(id, preset) {
       if (!old) {       // Schnelleingabe: Datum, Uhrzeit und Dauer aus dem Text übernehmen
         quick = S.parseQuick(f.title, today());
         if (quick.date && !touched.date) { f.date = quick.date; date.value = f.date; }
-        if (quick.start !== undefined && !touched.time) { f.start = quick.start; if (f.allDay) { f.allDay = false; allDayBox.checked = false; times.hidden = false; } }
+        if (quick.start !== undefined && !touched.time) { f.start = quick.start; if (f.allDay) { f.allDay = false; allDayBox.checked = false; times.hidden = false; spanBox.hidden = true; } }
         if (quick.dur && !touched.time) f.dur = quick.dur;
         sync();
         const d = S.describeQuick(quick, today(), x => fmtDay(x, { weekday: 'short', day: 'numeric', month: 'numeric' }), M.fmtTime);
@@ -442,7 +527,7 @@ function openEvent(id, preset) {
 
   if (!Number.isInteger(f.rem)) f.rem = old ? 30 : remDefault();
   const rem = h('select', { 'aria-label': 'Erinnern', onchange: () => { f.rem = Number(rem.value); } }, S.REMINDERS.map(([v, l]) => h('option', { value: String(v), selected: v === f.rem }, l)));
-  const date = h('input', { type: 'date', value: f.date, 'aria-label': 'Datum', onchange: () => { touched.date = true; if (date.value) f.date = date.value; else date.value = f.date; } });
+  const date = h('input', { type: 'date', value: f.date, 'aria-label': 'Datum', onchange: () => { touched.date = true; if (date.value) f.date = date.value; else date.value = f.date; checkClash(); } });
   const durLabel = h('span', { class: 'dur-label' });
   const start = h('input', { type: 'time', value: M.fmtTime(f.start), 'aria-label': 'Beginn', onchange: () => { touched.time = true; const v = M.parseTime(start.value); if (v !== null) f.start = v; sync(); } });
   const end = h('input', { type: 'time', value: M.fmtTime(f.start + f.dur), 'aria-label': 'Ende', onchange: () => {
@@ -452,24 +537,42 @@ function openEvent(id, preset) {
     sync();
   } });
   const durs = seg([[15, '15 Min.'], [30, '30 Min.'], [45, '45 Min.'], [60, '1 Std.'], [90, '1,5 Std.'], [120, '2 Std.'], [180, '3 Std.']], f.dur, v => { touched.time = true; f.dur = v; sync(); }, 'chips');
+  // Überschneidung mit einem anderen Termin derselben Person? Dann warnen und die nächste freie Zeit anbieten.
+  const clash = h('div', { class: 'clash', hidden: true });
+  function checkClash() {
+    const draft = { id: old ? old.id : '', date: f.date, start: f.start, dur: f.dur, who: f.who, allDay: f.allDay };
+    const hits = X.conflicts(store.all('event'), draft);
+    clash.hidden = !hits.length;
+    if (!hits.length) return;
+    const free = X.freeSlot(store.all('event'), draft);
+    clash.replaceChildren(h('span', { class: 'grow' }, `⚠️ Überschneidet sich mit „${hits[0].title}“ (${M.fmtTime(hits[0].start || 0)} – ${M.fmtTime((hits[0].start || 0) + (hits[0].dur || 0))})`),
+      free !== null ? h('button', { type: 'button', class: 'link', id: 'freeBtn', onclick: () => { touched.time = true; f.start = free; sync(); } }, `Frei: ${M.fmtTime(free)}`) : null);
+  }
   function sync() {
+    checkClash();
     start.value = M.fmtTime(f.start); end.value = M.fmtTime(f.start + f.dur);
     durLabel.textContent = `Dauer: ${M.fmtDur(f.dur)}${f.start + f.dur > 1440 ? ' (bis zum nächsten Tag)' : ''}`;
     durs.set(f.dur);
   }
   const times = h('div', { class: 'times', hidden: f.allDay },
-    h('div', { class: 'two' }, field('Beginn', start), field('Ende', end)), durs, durLabel, field('Erinnern', rem));
+    h('div', { class: 'two' }, field('Beginn', start), field('Ende', end)), durs, durLabel, clash, field('Erinnern', rem));
   sync();
-  const allDayBox = h('input', { type: 'checkbox', checked: !!f.allDay, onchange: () => { f.allDay = allDayBox.checked; times.hidden = f.allDay; } });
+  const endDate = h('input', { type: 'date', value: f.days > 1 ? M.addDays(f.date, f.days - 1) : '', 'aria-label': 'Bis', onchange: () => { f.end = endDate.value || ''; } });
+  f.end = endDate.value;
+  const spanBox = h('div', { hidden: !f.allDay }, field('Bis (bei mehreren Tagen, z. B. Urlaub)', endDate));
+  const birth = h('input', { type: 'text', inputMode: 'numeric', maxLength: 4, placeholder: 'z. B. 1956', value: f.birth ? String(f.birth) : '', 'aria-label': 'Geburtsjahr' });
+  const birthBox = h('div', { hidden: f.rep !== 'y' }, field('Geburtstag? Geburtsjahr (dann steht das Alter dabei)', birth));
+  const allDayBox = h('input', { type: 'checkbox', checked: !!f.allDay, onchange: () => { f.allDay = allDayBox.checked; times.hidden = f.allDay; spanBox.hidden = !f.allDay; checkClash(); } });
   const allDay = h('label', { class: 'switch' }, allDayBox, h('span', {}, 'Ganztägig'));
   const pin = h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!f.pin, onchange: e => { f.pin = e.target.checked; } }), h('span', {}, 'Countdown auf der Heute-Karte'));
-  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; } }, M.REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
+  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; birthBox.hidden = f.rep !== 'y'; } }, M.REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
   const note = h('textarea', { rows: 2, placeholder: 'Notiz (optional)', maxLength: 600, value: f.note || '', oninput: () => { f.note = note.value; } });
 
   const save = () => {
     const t = (old ? f.title : quick.title || '').trim();
     if (!t) { title.classList.add('err'); title.focus(); return; }
-    const fields = { ...(old ? { id: old.id } : { by: store.me }), t: 'event', title: t, icon: f.icon, date: f.date, allDay: !!f.allDay, start: f.start, dur: f.dur, who: f.who, rep: f.rep || '', until: f.until || '', pin: !!f.pin, rem: f.rem, note: (f.note || '').trim() };
+    const fields = { ...(old ? { id: old.id } : { by: store.me }), t: 'event', title: t, icon: f.icon, date: f.date, allDay: !!f.allDay, start: f.start, dur: f.dur, who: f.who, rep: f.rep || '', until: f.until || '', pin: !!f.pin, rem: f.rem,
+      days: f.allDay && f.end && f.end > f.date ? Math.min(60, M.dayDiff(f.date, f.end) + 1) : 1, birth: f.rep === 'y' && /^(19|20)\d\d$/.test(birth.value.trim()) ? Number(birth.value.trim()) : 0, note: (f.note || '').trim() };
     const it = store.put(Object.assign(fields));
     ui.day = f.date; ui.follow = f.date === today();
     closeSheet(); update();
@@ -477,9 +580,9 @@ function openEvent(id, preset) {
   };
   openSheet(old ? 'Termin bearbeiten' : 'Neuer Termin',
     h('div', { class: 'title-row' }, iconBtn, title), magic, grid,
-    field('Für wen?', seg(whoOptions(), f.who, v => { f.who = v; })),
+    field('Für wen?', seg(whoOptions(), f.who, v => { f.who = v; checkClash(); })),
     h('div', { class: 'two' }, field('Datum', date), field('Wiederholen', rep)),
-    allDay, times, pin, note,
+    allDay, spanBox, times, birthBox, pin, note,
     h('div', { class: 'actions' },
       old ? confirmBtn('Löschen', old.rep ? 'Ganze Serie löschen?' : 'Wirklich löschen?', () => { store.remove(old.id); closeSheet(); }) : null,
       h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, old ? 'Speichern' : 'Eintragen')));
@@ -490,12 +593,14 @@ function openEvent(id, preset) {
 function toggleDone(it) {
   if (it.t === 'todo' && !it.done && it.rep) {       // wiederkehrende Aufgabe: springt auf den nächsten Termin
     const due = S.nextDue(it.due, it.rep, today());
-    store.put({ id: it.id, due });
+    const turn = it.rot && (it.who === 'p1' || it.who === 'p2');       // im Wechsel: jetzt ist der andere dran
+    store.put({ id: it.id, due, hist: [...(it.hist || []), [Date.now(), store.me]].slice(-30), subs: (it.subs || []).map(x => ({ t: x.t, d: 0 })), ...(turn ? { who: M.other(it.who) } : {}) });
+    if (turn) { cheer(); return toast(`Erledigt 🎉 Nächstes Mal: ${person(M.other(it.who)).name}`); }
     cheer();
     return toast(`Erledigt 🎉 Wieder fällig: ${M.dueLabel(due, today()).text}`);
   }
   if (!it.done) cheer();
-  store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1 } : {}) });
+  store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'todo' ? { doneBy: it.done ? '' : store.me } : {}), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1 } : {}) });
 }
 function row(it, { meta, onOpen, title = it.title, lead }) {
   const key = `${it.id}:${it.done ? 1 : 0}`, fresh = known.ready && !known.set.has(key);
@@ -519,33 +624,101 @@ function addShop(title) {
   if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() });
   else store.put({ t: 'shop', title, done: false, by: store.me });
 }
+let wake = null;
+async function storeMode(on) {          // Einkaufsmodus: große Zeilen, nur was fehlt, Bildschirm bleibt an
+  ui.store = on;
+  try { if (on && navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); else if (wake) { await wake.release(); wake = null; } } catch { /* dann eben ohne */ }
+  if (ui.tab === 'shop') setTab('shop');
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.store) storeMode(true); });
+const onList = title => store.all('shop').some(i => !i.done && i.title.toLowerCase() === title.toLowerCase());
+
 views.shop = {
   mount(v) {
     shopTyped = '';
-    // mehrere auf einmal: „Milch, Brot, Eier“
-    v.append(quickAdd('Was fehlt? z. B. Milch, Brot', text => { for (const part of text.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)) addShop(part.slice(0, 120)); },
-      typed => { shopTyped = typed; views.shop.suggest(); }), h('div', { id: 'shopSuggest', class: 'suggest' }), h('div', { id: 'shopList' }));
+    if (!['list', 'stock', 'recipe'].includes(ui.shop)) ui.shop = 'list';
+    if (ui.store) { v.append(h('div', { id: 'shopList', class: 'store' })); return; }
+    v.append(h('div', { id: 'shopTabs' }, seg([['list', 'Liste'], ['stock', 'Vorrat'], ['recipe', 'Rezepte']], ui.shop, x => { ui.shop = x; setTab('shop'); })));
+    if (ui.shop === 'list') {
+      // mehrere auf einmal: „Milch, Brot, Eier“
+      v.append(quickAdd('Was fehlt? z. B. Milch, Brot', text => { for (const part of text.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)) addShop(part.slice(0, 120)); },
+        typed => { shopTyped = typed; views.shop.suggest(); }), h('div', { id: 'shopSuggest', class: 'suggest' }), h('div', { id: 'shopList' }));
+    } else if (ui.shop === 'stock') {
+      v.append(quickAdd('Was habt ihr immer da? z. B. Kaffee', text => { for (const part of text.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)) if (!store.all('stock').some(i => i.title.toLowerCase() === part.toLowerCase())) store.put({ t: 'stock', title: part.slice(0, 120), by: store.me }); }),
+        h('div', { id: 'stockList' }));
+    } else {
+      v.append(h('button', { type: 'button', class: 'btn soft wide', id: 'recipeNew', onclick: () => openRecipe() }, '＋ Neues Rezept'), h('div', { id: 'recipeList' }));
+    }
   },
   suggest() {
+    if (!$('#shopSuggest')) return;
     const list = S.suggestShop(store.all('shop'), shopTyped.split(/[,;]/).pop());
     $('#shopSuggest').replaceChildren(...(list.length ? [h('span', { class: 'suggest-label' }, shopTyped ? 'Meinst du' : 'Oft gekauft'),
       ...list.map(i => h('button', { type: 'button', onclick: () => { addShop(i.title); const inp = $('.quick input'); if (shopTyped && inp) { inp.value = ''; shopTyped = ''; } } }, `＋ ${i.title}`))] : []));
   },
   update() {
+    if (ui.store) return views.shop.updateStore();
+    if (ui.shop === 'stock') return views.shop.updateStock();
+    if (ui.shop === 'recipe') return views.shop.updateRecipes();
     const all = store.all('shop');
     const open = all.filter(i => !i.done);
     const done = all.filter(i => i.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).slice(0, 40);
     const mk = i => { const q = S.splitQty(i.title); return row(i, { title: q.name, lead: q.qty, meta: i.by && i.by !== store.me && !i.done ? [whoTag(i.by)] : null, onOpen: () => openShop(i.id) }); };
     const kids = [];
     views.shop.suggest();
-    if (open.length) for (const g of S.groupShop(open)) kids.push(h('div', { class: 'sec aisle' }, h('span', {}, `${g.emoji} ${g.label}`)), h('div', { class: 'card' }, g.items.map(mk)));
-    else kids.push(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🛒'), h('p', {}, done.length ? 'Alles eingekauft!' : 'Die Liste ist leer. Schreib oben auf, was fehlt.')));
+    if (open.length) {
+      kids.push(h('button', { type: 'button', class: 'btn soft wide store-btn', id: 'storeBtn', onclick: () => storeMode(true) }, '🛍️ Im Laden? Einkaufsmodus'));
+      for (const g of S.groupShop(open)) kids.push(h('div', { class: 'sec aisle' }, h('span', {}, `${g.emoji} ${g.label}`)), h('div', { class: 'card' }, g.items.map(mk)));
+    } else kids.push(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🛒'), h('p', {}, done.length ? 'Alles eingekauft!' : 'Die Liste ist leer. Schreib oben auf, was fehlt.')));
     if (done.length) kids.push(...section(`Erledigt (${done.length})`,
       confirmBtn('Aufräumen', 'Alle entfernen?', () => { for (const i of done) store.remove(i.id); toast('Erledigte entfernt'); }, 'link'), done.map(mk)));
     $('#shopList').replaceChildren(...kids);
     knownDone();
   },
+  updateStore() {
+    const all = store.all('shop'), open = all.filter(i => !i.done);
+    const total = open.length + all.filter(i => i.done && Date.now() - (i.doneAt || 0) < 3 * 3600000).length, got = total - open.length;
+    const mk = i => { const q = S.splitQty(i.title); return row(i, { title: q.name, lead: q.qty, onOpen: () => toggleDone(i) }); };
+    const kids = [h('div', { class: 'store-head' }, h('div', {}, h('b', {}, open.length ? `Noch ${open.length}` : 'Alles im Wagen 🎉'), h('span', { class: 'hint' }, total ? ` · ${got} von ${total} erledigt` : '')),
+      h('button', { type: 'button', class: 'pill', id: 'storeEnd', onclick: () => storeMode(false) }, 'Fertig')),
+      h('div', { class: 'progress' }, h('i', { style: `width:${total ? Math.round(100 * got / total) : 100}%` }))];
+    for (const g of S.groupShop(open)) kids.push(h('div', { class: 'sec aisle' }, h('span', {}, `${g.emoji} ${g.label}`)), h('div', { class: 'card' }, g.items.map(mk)));
+    $('#shopList').replaceChildren(...kids);
+    knownDone();
+  },
+  updateStock() {
+    const list = store.all('stock').sort((a, b) => a.title.localeCompare(b.title, 'de'));
+    $('#stockList').replaceChildren(...(list.length ? [h('p', { class: 'hint pad' }, 'Geht etwas zur Neige? Ein Tipp setzt es auf die Einkaufsliste.'), h('div', { class: 'card' }, list.map(i => { const there = onList(i.title);
+      return h('div', { class: 'row', 'data-id': i.id }, h('button', { type: 'button', class: 'row-main pad-l', onclick: () => openShop(i.id) }, h('span', { class: 'row-title' }, i.title)),
+        h('button', { type: 'button', class: `pill small${there ? ' there' : ''}`, disabled: there, onclick: () => { addShop(i.title); toast(`„${i.title}“ steht auf der Liste`); cheer(); } }, there ? '✓ steht drauf' : 'Bald leer')); }))]
+      : [h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🫙'), h('p', {}, 'Hier steht, was ihr immer im Haus habt: Kaffee, Klopapier, Olivenöl … Wird etwas knapp, genügt ein Tipp.'))]));
+  },
+  updateRecipes() {
+    const list = store.all('recipe').sort((a, b) => a.title.localeCompare(b.title, 'de'));
+    const lines = r => String(r.items || '').split('\n').map(x => x.trim()).filter(Boolean);
+    $('#recipeList').replaceChildren(...(list.length ? [h('div', { class: 'card' }, list.map(r => h('div', { class: 'row', 'data-id': r.id },
+      h('button', { type: 'button', class: 'row-main pad-l', onclick: () => openRecipe(r.id) }, h('span', { class: 'row-title' }, `📖 ${r.title}`), h('span', { class: 'row-meta' }, h('span', { class: 'note-mark' }, `${lines(r).length} Zutaten`))),
+      h('button', { type: 'button', class: 'pill small', onclick: () => cook(r) }, '＋ auf die Liste'))))]
+      : [h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🍝'), h('p', {}, 'Lieblingsgerichte mit ihren Zutaten: Ein Tipp setzt alles auf die Einkaufsliste.'))]));
+  },
 };
+function cook(r) {
+  const lines = String(r.items || '').split('\n').map(x => x.trim()).filter(Boolean);
+  let n = 0;
+  for (const l of lines) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
+  toast(n ? `${n} ${n === 1 ? 'Zutat' : 'Zutaten'} für „${r.title}“ auf der Liste` : 'Steht alles schon drauf');
+  if (n) cheer();
+}
+function openRecipe(id) {
+  const it = id ? store.get(id) : null;
+  const title = h('input', { type: 'text', class: 'title-in', value: it ? it.title : '', placeholder: 'Name, z. B. Spaghetti Bolognese', maxLength: 80, 'aria-label': 'Name des Rezepts' });
+  const items = h('textarea', { rows: 7, maxLength: 1500, placeholder: 'Zutaten, eine pro Zeile:\n500 g Hackfleisch\nSpaghetti\n2 Dosen Tomaten', value: it ? it.items || '' : '', 'aria-label': 'Zutaten' });
+  const save = () => { const t = title.value.trim(); if (!t) { title.focus(); return null; } const r = store.put({ ...(it ? { id } : { by: store.me }), t: 'recipe', title: t, items: items.value.trim() }); closeSheet(); return r; };
+  openSheet(it ? 'Rezept' : 'Neues Rezept', h('div', { class: 'title-row' }, title), items,
+    h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) cook(r); } }, '🛒 Speichern und Zutaten auf die Liste'),
+    h('div', { class: 'actions' }, it ? confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }) : null, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
+  if (!it) setTimeout(() => title.focus(), 60);
+}
 
 function openShop(id) {
   const it = store.get(id);
@@ -566,7 +739,8 @@ views.todo = {
         store.put({ t: 'todo', title: q.title, done: false, who: ui.filter || '', due: q.date || '', rep: '', note: '', by: store.me });
         if (q.date) toast(`Fällig: ${M.dueLabel(q.date, today()).text}`);
       }),
-      h('div', { id: 'todoFilter' }), h('div', { id: 'todoList' }));
+      h('div', { id: 'todoFilter' }), h('div', { id: 'todoList' }),
+      h('button', { type: 'button', class: 'btn soft wide', id: 'reviewBtn', onclick: openReview }, '📊 Wochenrückblick'));
   },
   update() {
     const me = store.me, ot = M.other(me);
@@ -578,7 +752,8 @@ views.todo = {
     const mk = x => {
       const meta = [];
       if (x.due && !x.done) { const d = M.dueLabel(x.due, today()); meta.push(h('span', { class: `due${d.late ? ' late' : ''}` }, d.text)); }
-      if (x.rep) meta.push(h('span', { class: 'note-mark' }, (S.TODO_REPEATS.find(r => r[0] === x.rep) || ['', ''])[1]));
+      if (x.subs && x.subs.length) meta.push(h('span', { class: 'note-mark' }, `☑ ${x.subs.filter(u => u.d).length}/${x.subs.length}`));
+      if (x.rep) meta.push(h('span', { class: 'note-mark' }, (S.TODO_REPEATS.find(r => r[0] === x.rep) || ['', ''])[1] + (x.rot ? ' · im Wechsel' : '')));
       if (x.who) meta.push(whoTag(x.who));
       if (x.note) meta.push(h('span', { class: 'note-mark' }, 'Notiz'));
       return row(x, { meta, onOpen: () => openTodo(x.id) });
@@ -590,6 +765,17 @@ views.todo = {
     knownDone();
   },
 };
+
+function openReview() {
+  const r = X.weekReview(store.everything(), Date.now());
+  const card = p => { const who = person(p), list = r.by[p]; const count = new Map(); for (const t of list) count.set(t, (count.get(t) || 0) + 1);
+    return h('div', { class: 'set-body review', style: `--c:${who.color}` }, h('div', { class: 'review-head' }, h('b', {}, who.name), h('span', { class: 'review-n' }, String(list.length))),
+      list.length ? h('p', { class: 'hint' }, [...count].map(([t, n]) => (n > 1 ? `${t} ×${n}` : t)).join(' · ')) : h('p', { class: 'hint' }, 'Diese Woche noch nichts abgehakt.')); };
+  openSheet('Wochenrückblick',
+    h('p', { class: 'hint' }, r.total ? `In den letzten 7 Tagen habt ihr ${r.total} ${r.total === 1 ? 'Aufgabe' : 'Aufgaben'} erledigt, ${r.bought} ${r.bought === 1 ? 'Sache' : 'Sachen'} eingekauft und ${r.events} ${r.events === 1 ? 'Termin' : 'Termine'} gehabt. 🎉` : 'In den letzten 7 Tagen ist noch nichts abgehakt worden.'),
+    card(store.me), card(M.other(store.me)),
+    h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn primary', onclick: () => closeSheet() }, 'Schön!')));
+}
 
 function openTodo(id) {
   const it = store.get(id);
@@ -603,13 +789,25 @@ function openTodo(id) {
   const save = () => {
     const tt = f.title.trim();
     if (!tt) return title.focus();
-    store.put({ id, title: tt, who: f.who || '', due: f.due || (f.rep ? today() : ''), rep: f.rep || '', note: (f.note || '').trim() });
+    store.put({ id, title: tt, who: f.who || '', due: f.due || (f.rep ? today() : ''), rep: f.rep || '', rot: !!(f.rep && f.rot), subs: f.subs, note: (f.note || '').trim() });
     closeSheet();
   };
-  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; } }, S.TODO_REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
+  // Unterpunkte
+  f.subs = (it.subs || []).map(x => ({ t: x.t, d: x.d ? 1 : 0 }));
+  const subList = h('div', { class: 'subs' });
+  const drawSubs = () => subList.replaceChildren(...f.subs.map((x, i) => h('div', { class: `sub${x.d ? ' done' : ''}` },
+    h('button', { type: 'button', class: `check${x.d ? ' on' : ''}`, 'aria-label': `${x.t} abhaken`, onclick: () => { x.d = x.d ? 0 : 1; drawSubs(); } }, x.d ? icon('check') : null),
+    h('span', { class: 'grow' }, x.t),
+    h('button', { type: 'button', class: 'icon-btn', 'aria-label': `${x.t} entfernen`, onclick: () => { f.subs.splice(i, 1); drawSubs(); } }, icon('x')))));
+  drawSubs();
+  const subIn = h('input', { type: 'text', placeholder: 'Unterpunkt hinzufügen …', maxLength: 80, enterKeyHint: 'done', 'aria-label': 'Unterpunkt hinzufügen',
+    onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); const v = subIn.value.trim(); if (v && f.subs.length < 20) { f.subs.push({ t: v, d: 0 }); subIn.value = ''; drawSubs(); } } } });
+  const rotBox = h('label', { class: 'switch', hidden: !f.rep }, h('input', { type: 'checkbox', checked: !!f.rot, onchange: e => { f.rot = e.target.checked; } }), h('span', {}, 'Im Wechsel: nach dem Abhaken ist der andere dran'));
+  const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; rotBox.hidden = !f.rep; } }, S.TODO_REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
   openSheet('Aufgabe', h('div', { class: 'title-row' }, title),
     field('Wer macht das?', seg([['', 'Egal'], ...whoOptions('Beide')], f.who || '', v => { f.who = v; })),
-    field('Fällig', quick, h('div', { class: 'two' }, date, rep)), note,
+    field('Fällig', quick, h('div', { class: 'two' }, date, rep)), rotBox,
+    field('Unterpunkte', subList, subIn), note,
     h('div', { class: 'actions' }, confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }), h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
 }
 
@@ -658,6 +856,7 @@ function openSettings() {
   openSheet('Einstellungen',
     group('Du', name, colors),
     group('Aussehen', theme, looks,
+      field('Beim Öffnen zeigen', seg([['cal', 'Kalender'], ['shop', 'Einkauf'], ['todo', 'To-dos']], prefs.start, v => { prefs.start = v; applyPrefs(true); })),
       field('Begleiter oben in der Leiste', seg([['cute', '🌱 Süß'], ['plain', '🙂 Schlicht'], ['off', 'Aus']], prefs.buddy, v => { prefs.buddy = v; applyPrefs(true); cheer('wink'); }))),
     group('Mitteilungen',
       h('label', { class: 'switch' }, pushBox, h('span', {}, 'Mitteilungen auf diesem Gerät')),
@@ -666,6 +865,17 @@ function openSettings() {
       h('div', { class: 'two' }, field('Tagesüberblick', sum), field('Vor Terminen', remSel))),
     group('Zu zweit', h('p', { class: 'hint' }, ot.named ? [h('i', { class: 'dot', style: `--c1:${ot.color};--c2:${ot.color}` }), ` ${ot.name} ist dabei.`] : 'Noch allein hier. Gib den Paar-Code weiter – auf dem zweiten Handy „Ich habe einen Paar-Code“ wählen.'), codeBox()),
     group('Abgleich', state, h('button', { type: 'button', class: 'btn soft', onclick: async () => { const ok = await store.sync(); toast(ok ? 'Abgeglichen' : 'Gerade keine Verbindung'); } }, 'Jetzt abgleichen')),
+    group('Eure Daten',
+      h('button', { type: 'button', class: 'btn soft', id: 'icsBtn', onclick: () => giveFile('home-kalender.ics', X.toICS(store.all('event')), 'text/calendar') }, '🗓️ Kalender exportieren (für Apple Kalender)'),
+      h('button', { type: 'button', class: 'btn soft', id: 'backupBtn', onclick: () => giveFile(`home-sicherung-${today()}.json`, X.toBackup(store.everything(), Date.now()), 'application/json') }, '💾 Sicherung als Datei speichern'),
+      h('label', { class: 'btn soft file' }, '📂 Sicherung einspielen', h('input', { type: 'file', accept: '.json,application/json', id: 'restoreIn', onchange: async e => {
+        const f = e.target.files[0]; if (!f) return;
+        const list = X.fromBackup(await f.text());
+        if (!list) return toast('Das ist keine Sicherung dieser App');
+        for (const it of list) store.put(it);
+        toast(`${list.length} Einträge eingespielt`);
+      } })),
+      h('p', { class: 'hint' }, 'Einspielen ergänzt und überschreibt gleiche Einträge; gelöscht wird dabei nichts.')),
     group('Dieses Gerät',
       h('p', { class: 'hint' }, 'Aufs iPhone: in Safari auf „Teilen“ und „Zum Home-Bildschirm“. Die App vom Home-Bildschirm hat einen eigenen Speicher – dort den Paar-Code noch einmal eingeben.'),
       h('button', { type: 'button', class: 'btn soft', id: 'newsBtn', onclick: () => openNews(false) }, `Was ist neu? · Version ${NEWS[0][0]}`),
@@ -676,6 +886,19 @@ function openSettings() {
 // ---- Was ist neu (erscheint einmal nach einem Update, sonst unter Einstellungen) -----------------
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 const NEWS = [
+  ['1.4', '10. November 2026', [
+    ['🗓️', 'Kalender aufgeräumt', 'Neue Wochenübersicht (Tag/Woche umschalten), die Heute-Karte lässt sich einklappen, Vergangenes von heute faltet sich zusammen. Dazu Feiertage und Kalenderwoche.'],
+    ['⚠️', 'Überschneidungen', 'Beim Eintragen warnt die App, wenn schon etwas ansteht – und schlägt die nächste freie Zeit vor.'],
+    ['🔍', 'Suche', 'Die Lupe im Kalender findet Termine, Aufgaben, Einkäufe und Rezepte.'],
+    ['🎂', 'Geburtstage mit Alter', 'Jährlicher Termin plus Geburtsjahr – und im Kalender steht „wird 70“.'],
+    ['🏖️', 'Mehrtägige Termine', 'Ganztägig mit „Bis“-Datum: Der Urlaub zieht sich als Balken durch die Woche.'],
+    ['👆', 'Freie Zeit antippen', 'Im Zeitstrahl auf eine Lücke tippen und dort direkt einen Termin eintragen.'],
+    ['🛍️', 'Einkaufsmodus', 'Im Laden: große Zeilen, nur was fehlt, der Bildschirm bleibt an.'],
+    ['🫙', 'Vorrat und Rezepte', 'Was immer da sein soll, mit einem Tipp auf die Liste. Rezepte setzen alle Zutaten auf einmal drauf.'],
+    ['☑️', 'Unterpunkte und Wechsel', 'Aufgaben mit Unterpunkten; Wiederkehrendes kann zwischen euch abwechseln.'],
+    ['📊', 'Wochenrückblick', 'Unter den To-dos: wer was erledigt hat.'],
+    ['💾', 'Export und Sicherung', 'Kalender für Apple Kalender ausgeben, alle Daten als Datei sichern – in den Einstellungen. Dort auch: womit die App startet.'],
+  ]],
   ['1.3', '10. November 2026', [
     ['🩹', 'Schnelles Tippen kommt an', 'Zwei Einträge direkt nacheinander abhaken ging manchmal ins Leere – behoben.'],
     ['🔔', 'Mitteilungen verlässlicher', 'Sie kommen jetzt auch, wenn das Handy die App gerade erst in den Hintergrund gelegt hat.'],
@@ -710,12 +933,13 @@ function newsOnce() {
 }
 
 // ---- Einführung (einmal je Gerät, später unter Einstellungen) -----------------------------------
+// Bei neuen Funktionen nachziehen: hier steht nur, was man unbedingt wissen sollte (fünf Karten, je zwei bis drei Sätze).
 const INTRO = [
-  ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“. Datum und Uhrzeit erkennt die App von selbst. Jeder Termin gehört dir, dem anderen oder euch beiden.'],
-  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Die Liste sortiert sich nach Regalen, und was einer abhakt, ist bei beiden abgehakt.'],
-  ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, und Wiederkehrendes springt nach dem Abhaken von selbst auf den nächsten Termin.'],
-  ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen.'],
-  ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das und die Farben findest du oben rechts in den Einstellungen.'],
+  ['🗓️', 'Euer gemeinsamer Kalender', 'Tippe auf das Plus und schreib einfach los: „Kino Freitag 20 Uhr“ – Datum und Uhrzeit erkennt die App von selbst. Oben schaltest du zwischen Tag und Woche um; die Lupe findet alles wieder.'],
+  ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Vorrat“ und „Rezepte“ landet Wiederkehrendes mit einem Tipp auf der Liste.'],
+  ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, bekommen Unterpunkte und können sich zwischen euch abwechseln. Der Wochenrückblick zeigt, wer was geschafft hat.'],
+  ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen. Zu groß? Der Pfeil klappt sie ein.'],
+  ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, den Kalender-Export und die Sicherung findest du oben rechts in den Einstellungen.'],
 ];
 const introSeen = () => { try { return localStorage.getItem('zweiplan-intro') === '1'; } catch { return true; } };
 function openIntro(withCode) {
