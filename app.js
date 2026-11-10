@@ -769,12 +769,20 @@ function openRecipe(id) {
   const it = id ? store.get(id) : null;
   const f = { serves: it ? it.serves || 0 : 0, link: it ? it.link || '' : '' };
   const suggest = h('div', { class: 'suggest inline', id: 'dishSuggest' });
-  const fill = d => { title.value = d.title; items.value = d.items.join ? d.items.join('\n') : d.items; f.serves = d.serves || 0; servesSeg.set(f.serves); if (d.link) { f.link = d.link; link.value = d.link; } suggest.replaceChildren(); };
+  const fill = d => { title.value = d.title; items.value = d.items.join ? d.items.join('\n') : d.items; f.serves = d.serves || 0; servesSeg.set(f.serves); base = { text: items.value, serves: f.serves }; if (d.link) { f.link = d.link; link.value = d.link; } suggest.replaceChildren(); };
   const title = h('input', { type: 'text', class: 'title-in', value: it ? it.title : '', placeholder: 'Name, z. B. Lasagne', maxLength: 80, autocomplete: 'off', 'aria-label': 'Name des Rezepts',
     oninput: () => { const hits = items.value.trim() ? [] : RC.findDish(title.value);          // Rezeptbuch: Zutaten vorschlagen, solange noch keine dastehen
       suggest.replaceChildren(...(hits.length ? [h('span', { class: 'suggest-label' }, '✨ Zutaten einfügen:'), ...hits.map(d => h('button', { type: 'button', onclick: () => { fill(d); toast('Zutaten eingefügt – passe sie an, wie du magst'); } }, d.title))] : [])); } });
   const items = h('textarea', { rows: 7, maxLength: 1500, placeholder: 'Zutaten, eine pro Zeile:\n500 g Hackfleisch\nSpaghetti\n2 Dosen Tomaten', value: it ? it.items || '' : '', 'aria-label': 'Zutaten' });
-  const servesSeg = seg([[0, '?'], ...[1, 2, 3, 4, 6, 8].map(n => [n, String(n)])], f.serves, v => { f.serves = v; }, 'chips');
+  // Andere Personenzahl antippen rechnet die Zutaten im Feld gleich um (von der bisherigen auf die neue Zahl)
+  const servesSeg = seg([[0, '?'], ...[1, 2, 3, 4, 6, 8].map(n => [n, String(n)])], f.serves, v => {
+    // immer von der Ausgangsfassung aus rechnen – sonst sammeln sich beim Hin-und-her-Wechseln Rundungen an
+    if (base.serves > 0 && v > 0 && base.text.trim()) { items.value = RC.scaleItems(base.text, base.serves, v).join('\n'); if (v !== f.serves) toast(`Mengen umgerechnet: für ${v}`); }
+    else if (v > 0) base = { text: items.value, serves: v };
+    f.serves = v;
+  }, 'chips');
+  let base = { text: items.value, serves: f.serves };          // Ausgangsfassung: so wie gespeichert, eingefügt oder zuletzt von Hand geändert
+  items.addEventListener('input', () => { base = { text: items.value, serves: f.serves }; });
   const link = h('input', { type: 'text', inputMode: 'url', value: f.link, placeholder: 'https://www.chefkoch.de/rezepte/…', maxLength: 300, autocomplete: 'off', autocapitalize: 'off', spellcheck: false, 'aria-label': 'Link zum Rezept' });
   const fetchBtn = h('button', { type: 'button', class: 'btn soft', id: 'recipeFetch', onclick: async () => {
     if (!link.value.trim()) return link.focus();
@@ -788,7 +796,7 @@ function openRecipe(id) {
   } }, 'Zutaten von der Seite holen');
   const save = () => { const t = title.value.trim(); if (!t) { title.focus(); return null; } const r = store.put({ ...(it ? { id } : { by: store.me }), t: 'recipe', title: t, items: items.value.trim(), serves: f.serves || 0, link: link.value.trim().slice(0, 300) }); closeSheet(); return r; };
   openSheet(it ? 'Rezept' : 'Neues Rezept', h('div', { class: 'title-row' }, title), suggest, items,
-    field('Für wie viele ist das?', servesSeg),
+    field('Für wie viele? (Die Mengen passen sich an)', servesSeg),
     field('Oder von einer Rezeptseite', link, fetchBtn),
     h('div', { class: 'two' },
       h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) askCook(r); } }, '🛒 Auf die Liste'),
