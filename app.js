@@ -142,16 +142,27 @@ function toast(text) {
   toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
 }
 
-// Wischen nach links/rechts (ohne das senkrechte Scrollen zu stören)
+// Wischen nach links/rechts. Sobald die Bewegung erkennbar waagerecht ist, gehört sie dem Wischen
+// (die Seite scrollt dann nicht mehr mit) – sonst bricht das Handy die Geste mitten drin ab.
 function swipe(el, onLeft, onRight) {
-  let x0 = null, y0 = 0;
-  el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
-  el.addEventListener('touchend', e => {
-    if (x0 === null) return;
-    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
-    x0 = null;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > 2 * Math.abs(dy)) (dx < 0 ? onLeft : onRight)();
+  let x0 = null, y0 = 0, dx = 0, dy = 0, lock = '', t0 = 0;
+  el.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1 || e.target.closest('input, textarea, select, .suggest')) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = dy = 0; lock = ''; t0 = Date.now();
   }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (x0 === null) return;
+    dx = e.touches[0].clientX - x0; dy = e.touches[0].clientY - y0;
+    if (!lock && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+    if (lock === 'x' && e.cancelable) e.preventDefault();
+  }, { passive: false });
+  const end = () => {
+    if (x0 === null) return;
+    x0 = null;
+    if (lock === 'x' && Math.abs(dx) > (Date.now() - t0 < 300 ? 28 : 48)) (dx < 0 ? onLeft : onRight)();   // kurzes schnelles Wischen zählt auch
+  };
+  el.addEventListener('touchend', end, { passive: true });
+  el.addEventListener('touchcancel', end, { passive: true });
 }
 
 // Knopf, der erst beim zweiten Tippen auslöst („Löschen“ -> „Wirklich löschen?“)

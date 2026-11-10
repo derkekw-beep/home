@@ -532,3 +532,10 @@ button.gap:active span { color: var(--accent); }
 
 .intro-card p { font-size: 16px; }
 @media (max-height: 700px) { .intro-emo { width: 96px; height: 96px; font-size: 46px; border-radius: 32px; } .intro-card h2 { font-size: 22px; } .intro-card p { font-size: 15px; } }
+
+/* Kalender: der Tagesbereich reicht bis zum unteren Rand – Wischen klappt auch auf der leeren Fläche */
+#view.view-cal { display: flex; flex-direction: column; }
+#view.view-cal #calHead { flex: none; }
+#view.view-cal { padding-bottom: 0; }
+#view.view-cal #calDay { flex: 1 0 auto; touch-action: pan-y; padding-bottom: calc(var(--tabs) + var(--sab) + 96px); }
+#calHead { touch-action: pan-y; }
