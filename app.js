@@ -15,7 +15,7 @@ const ui = { tab: 'cal', day: M.ymd(new Date()), month: false, filter: '', follo
 { const t = new URLSearchParams(location.search).get('tab'); if (['cal', 'shop', 'todo'].includes(t)) ui.tab = t; }
 
 // ---- Aussehen (je Gerät): Hell/Dunkel und Farbthema --------------------------------------------
-const prefs = { theme: 'auto', look: 'indigo', buddy: 'cute', start: 'cal', card: 'open', mode: 'day' };   // buddy: 'cute' (süß) | 'plain' (schlicht) | 'off'
+const prefs = { theme: 'auto', look: 'indigo', buddy: 'cute', start: 'cal', card: 'open', mode: 'day', mute: [] };   // buddy: 'cute' (süß) | 'plain' (schlicht) | 'off'
 try { Object.assign(prefs, JSON.parse(localStorage.getItem('zweiplan-prefs') || '{}')); } catch { /* Standard */ }
 function applyPrefs(saveIt) {
   const el = document.documentElement;
@@ -934,6 +934,11 @@ function openSettings() {
       h('label', { class: 'switch' }, pushBox, h('span', {}, 'Mitteilungen auf diesem Gerät')),
       can ? h('p', { class: 'hint' }, `Du bekommst Bescheid, wenn ${ot.named ? ot.name : 'der andere'} etwas einträgt, vor Terminen und morgens mit dem Tagesüberblick.`)
         : h('p', { class: 'hint box' }, 'Hier nicht möglich. Auf dem iPhone: in Safari auf „Teilen“ → „Zum Home-Bildschirm“, die App von dort öffnen und dann hier einschalten.'),
+      field('Bescheid geben, wenn der andere etwas einträgt', [['cal', 'Neue und geänderte Termine'], ['shop', 'Einkaufsliste'], ['todo', 'Aufgaben und Zettel']].map(([k, label]) =>
+        h('label', { class: 'switch' }, h('input', { type: 'checkbox', id: `notify-${k}`, checked: !(prefs.mute || []).includes(k), onchange: e => {
+          prefs.mute = (prefs.mute || []).filter(x => x !== k).concat(e.target.checked ? [] : [k]); applyPrefs(true); Push.refresh(store);
+        } }), h('span', {}, label)))),
+      h('p', { class: 'hint' }, 'Mehrere Einträge kurz hintereinander kommen als eine Mitteilung, etwa 15 Sekunden später. Hast du die App gerade offen, kommt keine – dann siehst du es direkt.'),
       h('div', { class: 'two' }, field('Tagesüberblick', sum), field('Vor Terminen', remSel))),
     group('Zu zweit', h('p', { class: 'hint' }, ot.named ? [h('i', { class: 'dot', style: `--c1:${ot.color};--c2:${ot.color}` }), ` ${ot.name} ist dabei.`] : 'Noch allein hier. Gib den Paar-Code weiter – auf dem zweiten Handy „Ich habe einen Paar-Code“ wählen.'), codeBox()),
     group('Abgleich', state, h('button', { type: 'button', class: 'btn soft', onclick: async () => { const ok = await store.sync(); toast(ok ? 'Abgeglichen' : 'Gerade keine Verbindung'); } }, 'Jetzt abgleichen')),

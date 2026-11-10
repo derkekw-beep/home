@@ -14,9 +14,11 @@ async function subscription() {
   const reg = await navigator.serviceWorker.ready;
   return (await reg.pushManager.getSubscription()) || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes(VAPID_PUBLIC) });
 }
+// Worüber dieses Gerät nicht benachrichtigt werden will (aus den Einstellungen)
+const muted = () => { try { const m = JSON.parse(localStorage.getItem('zweiplan-prefs') || '{}').mute; return Array.isArray(m) ? m : []; } catch { return []; } };
 function announce(store, sub, extra = {}) {
   const j = sub.toJSON();
-  return store.post('push', { d: store.dev, me: store.me, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, ...extra });
+  return store.post('push', { d: store.dev, me: store.me, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, mute: muted(), ...extra });
 }
 
 // Liefert 'ok' | 'unsupported' | 'denied' | 'offline' | 'error'. Muss direkt aus einem Tippen heraus aufgerufen werden.
