@@ -2,7 +2,7 @@
 // Die App kommt immer komplett aus dem Cache EINER Version – nie halb alt, halb neu. Eine neue Version
 // wird beim Installieren vollständig geladen, danach lädt sich die App selbst neu.
 // Bei jeder Änderung an der App die Versionsnummer erhöhen (macht tools/deploy.mjs).
-const VERSION = 'zweiplan-v7';
+const VERSION = 'zweiplan-v8';
 const FILES = [
   './',
   './index.html',
