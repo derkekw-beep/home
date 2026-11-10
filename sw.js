@@ -8,6 +8,8 @@ const FILES = [
   './index.html',
   './style.css',
   './app.js',
+  './ui.js',
+  './texte.js',
   './model.js',
   './smart.js',
   './extra.js',

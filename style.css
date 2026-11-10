@@ -579,3 +579,11 @@ button.gap:active span { color: var(--accent); }
 #planPane { display: flex; flex-direction: column; gap: 14px; touch-action: pan-y; }
 #planPane .card { margin: 0; }
 #shopTabs .seg button { padding: 9px 2px; font-size: 13.5px; }
+
+/* ---- Rezeptbild, Werkzeuge an Abschnitten ---- */
+.recipe-pic { width: 100%; max-height: 190px; object-fit: cover; border-radius: 16px; display: block; background: var(--soft); }
+.recipe-thumb { width: 46px; height: 46px; object-fit: cover; border-radius: 12px; margin-left: 10px; flex: none; background: var(--soft); }
+.recipe-thumb + .row-main { padding-left: 12px; }
+.sec-tools { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--muted); }
+.sec-tools .link { padding: 4px 2px; }
+.icon-btn:disabled { opacity: .25; }

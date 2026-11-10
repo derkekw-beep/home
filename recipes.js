@@ -186,7 +186,7 @@ export function scaleItems(text, from, to) {
 
 // ---- Ausgeben ---------------------------------------------------------------------------------
 export function recipeText(r) {
-  return `${r.title}${r.serves ? ` (für ${r.serves})` : ''}\n${lines(r.items).map(l => `• ${l}`).join('\n')}${r.link ? `\n${r.link}` : ''}`;
+  return `${r.title}${r.serves ? ` (für ${r.serves})` : ''}\n${lines(r.items).map(l => `• ${l}`).join('\n')}${r.steps && !r.link ? `\n\n${r.steps}` : ''}${r.link ? `\n${r.link}` : ''}`;   // eigene Notizen gehen mit; die Anleitung fremder Seiten nicht – dafür der Link
 }
 export const recipesText = list => `${[...list].sort((a, b) => a.title.localeCompare(b.title, 'de')).map(recipeText).join('\n\n')}\n`;
 

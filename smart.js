@@ -111,8 +111,11 @@ export function aisleOf(title) {
   return MATCH_ORDER.find(a => a.rx.test(name)) || REST;
 }
 // Offene Einträge nach Regal gruppiert, in Laufrichtung durch den Laden
-export function groupShop(open) {
-  const order = [...AISLE_RX, REST];
+export const AISLE_LIST = [...AISLES.map(([key, emoji, label]) => ({ key, emoji, label })), { key: 'rest', emoji: '🛍️', label: 'Sonstiges' }];
+// custom = eigene Reihenfolge der Regale (so wie man durch den eigenen Laden läuft); nicht Genanntes folgt in der üblichen Reihenfolge
+export function groupShop(open, custom = []) {
+  const base = [...AISLE_RX, REST];
+  const order = [...custom.map(k => base.find(a => a.key === k)).filter(Boolean), ...base.filter(a => !custom.includes(a.key))];
   const map = new Map();
   for (const it of open) { const a = aisleOf(it.title); if (!map.has(a.key)) map.set(a.key, { ...a, items: [] }); map.get(a.key).items.push(it); }
   return order.filter(a => map.has(a.key)).map(a => { const g = map.get(a.key); g.items.sort((x, y) => (x.c || 0) - (y.c || 0)); return { key: g.key, emoji: g.emoji, label: g.label, items: g.items }; });
