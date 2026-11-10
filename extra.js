@@ -15,7 +15,7 @@ export function evTitle(ev, day) {
 }
 // Mehrtägig: der wievielte Tag ist das? Liefert z. B. „Tag 2 von 5“ oder ''
 export function spanText(ev, day) {
-  if (!ev.allDay || !(ev.days > 1) || ev.rep) return '';
+  if (!(ev.days > 1) || ev.rep) return '';
   const i = dayDiff(ev.date, day) + 1;
   return i >= 1 && i <= ev.days ? `Tag ${i} von ${ev.days}` : '';
 }
@@ -34,6 +34,7 @@ export function toICS(events, now = new Date()) {
     out.push('BEGIN:VEVENT', `UID:${e.id}@home-planer`, `DTSTAMP:${stamp}`, `SUMMARY:${esc(`${e.icon ? `${e.icon} ` : ''}${e.title}`)}`);
     if (e.allDay) out.push(`DTSTART;VALUE=DATE:${dDate(e.date)}`, `DTEND;VALUE=DATE:${dDate(addDays(e.date, Math.max(1, e.days || 1)))}`);
     else out.push(`DTSTART:${dTime(e.date, e.start || 0)}`, `DTEND:${dTime(e.date, (e.start || 0) + Math.max(e.dur || 0, 0))}`);
+    if (!e.allDay && e.days > 1 && !e.rep) out.push(`RRULE:FREQ=DAILY;COUNT=${Math.min(e.days, 60)}`);       // mehrere Tage, jeden Tag zur selben Zeit
     if (RRULE[e.rep]) out.push(`RRULE:${RRULE[e.rep]}${e.until ? `;UNTIL=${dDate(e.until)}` : ''}`);
     if (e.note) out.push(`DESCRIPTION:${esc(e.note)}`);
     out.push('END:VEVENT');

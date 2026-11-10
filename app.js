@@ -307,7 +307,7 @@ views.cal = {
     const days = ui.month ? M.monthGrid(y, m) : M.weekOf(ui.day);
     const dayBtn = d => {
       const evs = M.eventsOn(events, d);
-      const span = evs.find(e => e.allDay && e.days > 1);          // mehrtägig: durchgehender Balken
+      const span = evs.find(e => e.days > 1 && !e.rep);          // mehrtägig: durchgehender Balken
       const dots = evs.filter(e => e !== span).slice(0, 3).map(e => h('i', { class: 'dot', style: whoVars(e.who) }));
       if (todos.some(x => x.due === d)) dots.push(h('i', { class: 'dot hollow' }));
       const out = ui.month && Number(d.slice(5, 7)) !== m;
@@ -380,7 +380,7 @@ views.cal = {
           h('span', { class: 'ev-body' },
             h('span', { class: 'ev-title' }, X.evTitle(e, ui.day), e.rep ? icon('repeat', 'small') : null),
             h('span', { class: 'ev-sub' }, sub, live ? h('b', { class: 'live-tag' }, 'läuft') : null),
-            h('span', { class: 'ev-meta' }, whoTag(e.who), r.overlap ? h('span', { class: 'warn' }, 'überschneidet sich') : null),
+            h('span', { class: 'ev-meta' }, whoTag(e.who), X.spanText(e, ui.day) ? h('span', { class: 'tag' }, X.spanText(e, ui.day)) : null, r.overlap ? h('span', { class: 'warn' }, 'überschneidet sich') : null),
             e.note ? h('span', { class: 'ev-note' }, e.note) : null)));
       }
       if (!nowShown) tl.append(line());
@@ -512,7 +512,7 @@ function openEvent(id, preset) {
       f.title = title.value; title.classList.remove('err');
       if (!old) {       // Schnelleingabe: Datum, Uhrzeit und Dauer aus dem Text übernehmen
         quick = S.parseQuick(f.title, today());
-        if (quick.date && !touched.date) { f.date = quick.date; date.value = f.date; }
+        if (quick.date && !touched.date) { f.date = quick.date; date.value = f.date; endDate.min = f.date; if (f.end && f.end <= f.date) { f.end = ''; endDate.value = ''; } spanInfo(); }
         if (quick.start !== undefined && !touched.time) { f.start = quick.start; if (f.allDay) { f.allDay = false; allDayBox.checked = false; times.hidden = false; spanBox.hidden = true; } }
         if (quick.dur && !touched.time) f.dur = quick.dur;
         sync();
@@ -527,7 +527,7 @@ function openEvent(id, preset) {
 
   if (!Number.isInteger(f.rem)) f.rem = old ? 30 : remDefault();
   const rem = h('select', { 'aria-label': 'Erinnern', onchange: () => { f.rem = Number(rem.value); } }, S.REMINDERS.map(([v, l]) => h('option', { value: String(v), selected: v === f.rem }, l)));
-  const date = h('input', { type: 'date', value: f.date, 'aria-label': 'Datum', onchange: () => { touched.date = true; if (date.value) f.date = date.value; else date.value = f.date; checkClash(); } });
+  const date = h('input', { type: 'date', value: f.date, 'aria-label': 'Datum', onchange: () => { touched.date = true; if (date.value) f.date = date.value; else date.value = f.date; endDate.min = f.date; if (f.end && f.end <= f.date) { f.end = ''; endDate.value = ''; } spanInfo(); checkClash(); } });
   const durLabel = h('span', { class: 'dur-label' });
   const start = h('input', { type: 'time', value: M.fmtTime(f.start), 'aria-label': 'Beginn', onchange: () => { touched.time = true; const v = M.parseTime(start.value); if (v !== null) f.start = v; sync(); } });
   const end = h('input', { type: 'time', value: M.fmtTime(f.start + f.dur), 'aria-label': 'Ende', onchange: () => {
@@ -557,12 +557,15 @@ function openEvent(id, preset) {
   const times = h('div', { class: 'times', hidden: f.allDay },
     h('div', { class: 'two' }, field('Beginn', start), field('Ende', end)), durs, durLabel, clash, field('Erinnern', rem));
   sync();
-  const endDate = h('input', { type: 'date', value: f.days > 1 ? M.addDays(f.date, f.days - 1) : '', 'aria-label': 'Bis', onchange: () => { f.end = endDate.value || ''; } });
+  // Mehrere Tage: „Bis“ wählen – der Termin gilt dann an jedem Tag (mit Uhrzeit: jeden Tag zur selben Zeit)
+  const endDate = h('input', { type: 'date', value: f.days > 1 ? M.addDays(f.date, f.days - 1) : '', min: f.date, 'aria-label': 'Bis', onchange: () => { f.end = endDate.value && endDate.value > f.date ? endDate.value : ''; endDate.value = f.end; spanInfo(); checkClash(); } });
   f.end = endDate.value;
-  const spanBox = h('div', { hidden: !f.allDay }, field('Bis (bei mehreren Tagen, z. B. Urlaub)', endDate));
+  const spanNote = h('span', { class: 'dur-label', hidden: true });
+  function spanInfo() { const n = f.end ? M.dayDiff(f.date, f.end) + 1 : 1; spanNote.hidden = n < 2; spanNote.textContent = n > 60 ? 'Höchstens 60 Tage – bitte „Wiederholen“ nutzen.' : `${n} Tage${f.allDay ? '' : ', jeden Tag zur selben Uhrzeit'}`; }
+  const spanBox = h('div', {});                                    // (früher eigenes Feld; „Bis“ steht jetzt neben dem Datum)
   const birth = h('input', { type: 'text', inputMode: 'numeric', maxLength: 4, placeholder: 'z. B. 1956', value: f.birth ? String(f.birth) : '', 'aria-label': 'Geburtsjahr' });
   const birthBox = h('div', { hidden: f.rep !== 'y' }, field('Geburtstag? Geburtsjahr (dann steht das Alter dabei)', birth));
-  const allDayBox = h('input', { type: 'checkbox', checked: !!f.allDay, onchange: () => { f.allDay = allDayBox.checked; times.hidden = f.allDay; spanBox.hidden = !f.allDay; checkClash(); } });
+  const allDayBox = h('input', { type: 'checkbox', checked: !!f.allDay, onchange: () => { f.allDay = allDayBox.checked; times.hidden = f.allDay; spanInfo(); checkClash(); } });
   const allDay = h('label', { class: 'switch' }, allDayBox, h('span', {}, 'Ganztägig'));
   const pin = h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: !!f.pin, onchange: e => { f.pin = e.target.checked; } }), h('span', {}, 'Countdown auf der Heute-Karte'));
   const rep = h('select', { 'aria-label': 'Wiederholen', onchange: () => { f.rep = rep.value; birthBox.hidden = f.rep !== 'y'; } }, M.REPEATS.map(([v, l]) => h('option', { value: v, selected: v === (f.rep || '') }, l)));
@@ -572,7 +575,7 @@ function openEvent(id, preset) {
     const t = (old ? f.title : quick.title || '').trim();
     if (!t) { title.classList.add('err'); title.focus(); return; }
     const fields = { ...(old ? { id: old.id } : { by: store.me }), t: 'event', title: t, icon: f.icon, date: f.date, allDay: !!f.allDay, start: f.start, dur: f.dur, who: f.who, rep: f.rep || '', until: f.until || '', pin: !!f.pin, rem: f.rem,
-      days: f.allDay && f.end && f.end > f.date ? Math.min(60, M.dayDiff(f.date, f.end) + 1) : 1, birth: f.rep === 'y' && /^(19|20)\d\d$/.test(birth.value.trim()) ? Number(birth.value.trim()) : 0, note: (f.note || '').trim() };
+      days: f.end && f.end > f.date ? Math.min(60, M.dayDiff(f.date, f.end) + 1) : 1, birth: f.rep === 'y' && /^(19|20)\d\d$/.test(birth.value.trim()) ? Number(birth.value.trim()) : 0, note: (f.note || '').trim() };
     const it = store.put(Object.assign(fields));
     ui.day = f.date; ui.follow = f.date === today();
     closeSheet(); update();
@@ -581,11 +584,13 @@ function openEvent(id, preset) {
   openSheet(old ? 'Termin bearbeiten' : 'Neuer Termin',
     h('div', { class: 'title-row' }, iconBtn, title), magic, grid,
     field('Für wen?', seg(whoOptions(), f.who, v => { f.who = v; checkClash(); })),
-    h('div', { class: 'two' }, field('Datum', date), field('Wiederholen', rep)),
-    allDay, spanBox, times, birthBox, pin, note,
+    h('div', { class: 'two' }, field('Datum', date), field('Bis (bei mehreren Tagen)', endDate)), spanNote,
+    field('Wiederholen', rep),
+    allDay, times, birthBox, pin, note,
     h('div', { class: 'actions' },
       old ? confirmBtn('Löschen', old.rep ? 'Ganze Serie löschen?' : 'Wirklich löschen?', () => { store.remove(old.id); closeSheet(); }) : null,
       h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, old ? 'Speichern' : 'Eintragen')));
+  spanInfo();
   if (!old) setTimeout(() => title.focus(), 60);
 }
 

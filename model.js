@@ -39,9 +39,9 @@ export function fmtDur(min) {
 //           rep:''|'d'|'w'|'w2'|'m'|'y', until:''|Datum, note }
 export const REPEATS = [['', 'Nie'], ['d', 'Täglich'], ['w', 'Wöchentlich'], ['w2', 'Alle 2 Wochen'], ['m', 'Monatlich'], ['y', 'Jährlich']];
 
-// Mehrtägige (ganztägige) Termine gelten an jedem ihrer Tage: ev.days = Anzahl Tage
+// Mehrtägige Termine gelten an jedem ihrer Tage (mit Uhrzeit: jeden Tag zur selben Zeit): ev.days = Anzahl Tage
 export function occursOn(ev, day) {
-  const n = ev.allDay && ev.days > 1 ? Math.min(ev.days, 60) : 1;
+  const n = ev.days > 1 ? Math.min(ev.days, 60) : 1;
   for (let i = 0; i < n; i++) if (startsOn(ev, i ? addDays(day, -i) : day)) return true;
   return false;
 }
