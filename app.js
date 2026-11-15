@@ -532,7 +532,7 @@ function openEvent(id, preset) {
     field('Wiederholen', rep),
     allDay, times, birthBox, pin, note,
     h('div', { class: 'actions' },
-      old ? confirmBtn('Löschen', old.rep ? 'Ganze Serie löschen?' : 'Wirklich löschen?', () => { store.remove(old.id); closeSheet(); }) : null,
+      old ? confirmBtn('Löschen', old.rep ? 'Ganze Serie löschen?' : 'Wirklich löschen?', () => { closeSheet(); removeUndo([old], old.rep ? 'Serie gelöscht' : 'Termin gelöscht'); }) : null,
       h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, old ? 'Speichern' : 'Eintragen')));
   spanInfo();
   if (!old) setTimeout(() => title.focus(), 60);
@@ -544,11 +544,15 @@ function toggleDone(it) {
     const due = S.nextDue(it.due, it.rep, today());
     const turn = it.rot && (it.who === 'p1' || it.who === 'p2');       // im Wechsel: jetzt ist der andere dran
     store.put({ id: it.id, due, hist: [...(it.hist || []), [Date.now(), store.me]].slice(-30), subs: (it.subs || []).map(x => ({ t: x.t, d: 0 })), ...(turn ? { who: M.other(it.who) } : {}) });
-    if (turn) { cheer(); return toast(`Erledigt 🎉 Nächstes Mal: ${person(M.other(it.who)).name}`); }
+    const back = () => store.put({ id: it.id, due: it.due, hist: it.hist || [], subs: it.subs || [], who: it.who });
     cheer();
-    return toast(`Erledigt 🎉 Wieder fällig: ${M.dueLabel(due, today()).text}`);
+    return toastAction(turn ? `Erledigt 🎉 Nächstes Mal: ${person(M.other(it.who)).name}` : `Erledigt 🎉 Wieder fällig: ${M.dueLabel(due, today()).text}`, 'Rückgängig', back);
   }
   if (!it.done) cheer();
+  if (!it.done && (ui.store || it.t === 'todo')) {          // verschwindet aus dem Blick: kurz „Rückgängig“ anbieten
+    const copy = { ...it };
+    setTimeout(() => toastAction(`„${S.splitQty(it.title).name}“ ${it.t === 'todo' ? 'erledigt' : 'abgehakt'}`, 'Rückgängig', () => store.put(copy)), 0);
+  }
   store.put({ id: it.id, done: !it.done, doneAt: it.done ? 0 : Date.now(), ...(it.t === 'todo' ? { doneBy: it.done ? '' : store.me } : {}), ...(it.t === 'shop' && !it.done ? { n: (it.n || 0) + 1, buys: [...(it.buys || []), Date.now()].slice(-6) } : {}) });
 }
 function row(it, { meta, onOpen, title = it.title, lead }) {
@@ -567,11 +571,39 @@ const section = (title, right, items) => [h('div', { class: 'sec' }, h('span', {
 
 // ---- Einkaufsliste ----------------------------------------------------------------------------
 let shopTyped = '';
+// Mehrere Einträge löschen – mit „Rückgängig“ im Hinweis
+function removeUndo(list, text) {
+  const copies = list.map(i => ({ ...i }));
+  for (const i of copies) store.remove(i.id);
+  toastAction(text, 'Rückgängig', () => { for (const c of copies) store.put(c); });
+}
+// Etwas auf die Einkaufsliste setzen. Steht dasselbe schon offen drauf, wird die Menge dazugezählt.
+// Liefert { kind: 'new' | 'sum' | 'same', title, undo }.
+function putShop(line) {
+  const title = line.trim().slice(0, 120), all = store.all('shop');
+  for (const i of all) {
+    if (i.done) continue;
+    const sum = S.mergeShop(i.title, title);
+    if (sum === null) continue;
+    if (sum === i.title) return { kind: 'same', title: i.title, undo() {} };
+    const before = i.title;
+    store.put({ id: i.id, title: sum.slice(0, 120) });
+    return { kind: 'sum', title: sum, undo: () => store.put({ id: i.id, title: before }) };
+  }
+  const old = all.find(i => i.done && S.mergeShop(i.title, title) !== null);
+  if (old) { const copy = { ...old }; store.put({ id: old.id, title, done: false, doneAt: 0, by: store.me, c: Date.now() }); return { kind: 'new', title, undo: () => store.put(copy) }; }
+  const it = store.put({ t: 'shop', title, done: false, by: store.me });
+  return { kind: 'new', title, undo: () => store.remove(it.id) };
+}
+// Viele Zeilen auf einmal (Rezept, Essensplan): liefert, wie viele neu sind und wie viele dazugezählt wurden
+function putShopAll(list) {
+  const done = list.map(putShop).filter(r => r.kind !== 'same');
+  return { n: done.length, sums: done.filter(r => r.kind === 'sum').length, undo: () => { for (const r of done.reverse()) r.undo(); } };
+}
 function addShop(title) {
-  const same = store.all('shop').find(i => i.title.toLowerCase() === title.toLowerCase());
-  if (same && !same.done) return toast(`„${same.title}“ steht schon drauf`);
-  if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() });
-  else store.put({ t: 'shop', title, done: false, by: store.me });
+  const r = putShop(title);
+  if (r.kind === 'same') return toast(`„${r.title}“ steht schon drauf`);
+  if (r.kind === 'sum') toastAction(`Zusammengezählt: ${r.title}`, 'Rückgängig', r.undo);
 }
 let wake = null;
 async function storeMode(on) {          // Einkaufsmodus: große Zeilen, nur was fehlt, Bildschirm bleibt an
@@ -648,7 +680,7 @@ views.shop = {
       kids.push(h('button', { type: 'button', class: 'link help', id: 'aisleSort', onclick: openAisles }, 'Regale nach eurem Laden sortieren'));
     } else kids.push(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '🛒'), h('p', {}, done.length ? 'Alles eingekauft!' : 'Die Liste ist leer. Schreib oben auf, was fehlt.')));
     if (done.length) kids.push(...section(`Erledigt (${done.length})`,
-      confirmBtn('Aufräumen', 'Alle entfernen?', () => { for (const i of done) store.remove(i.id); toast('Erledigte entfernt'); }, 'link'), done.map(mk)));
+      h('button', { type: 'button', class: 'link', id: 'shopClear', onclick: () => removeUndo(done, 'Erledigte entfernt') }, 'Aufräumen'), done.map(mk)));
     $('#shopList').replaceChildren(...kids);
     knownDone();
   },
@@ -709,10 +741,10 @@ views.shop = {
 // Zutaten eines Rezepts auf die Einkaufsliste setzen – umgerechnet auf „people“ Personen, ohne Doppelte
 function cook(r, people) {
   const list = RC.scaleItems(r.items, r.serves || 0, people || r.serves || 0);
-  let n = 0;
-  for (const l of list) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
-  toast(n ? `${n} ${n === 1 ? 'Zutat' : 'Zutaten'} für „${r.title}“ auf der Liste` : 'Steht alles schon drauf');
-  if (n) cheer();
+  const { n, sums, undo } = putShopAll(list);
+  if (!n) return toast('Steht alles schon drauf');
+  toastAction(`${n} ${n === 1 ? 'Zutat' : 'Zutaten'} für „${r.title}“ auf der Liste${sums ? ` (${sums} zusammengezählt)` : ''}`, 'Rückgängig', undo);
+  cheer();
 }
 // Vor dem Draufsetzen: für wie viele? (nur wenn das Rezept seine Portionen kennt)
 function askCook(r) {
@@ -772,7 +804,7 @@ function openRecipe(id) {
       h('button', { type: 'button', class: 'btn soft', id: 'recipeCook', onclick: () => { const r = save(); if (r) askCook(r); } }, '🛒 Auf die Liste'),
       h('button', { type: 'button', class: 'btn soft', id: 'recipePlan', onclick: () => { const r = save(); if (r) { setTab('cal'); openEvent(null, { title: r.title, icon: '🍽️', start: 18 * 60 + 30, dur: 60, who: 'both' }); } } }, '🍽️ Einplanen')),
     it ? h('button', { type: 'button', class: 'btn soft', id: 'recipeShare', onclick: async () => { const text = RC.recipeText({ title: title.value.trim(), items: items.value, serves: f.serves, link: link.value.trim() }); try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); toast('Rezept kopiert'); } } catch { /* abgebrochen */ } } }, '📤 Rezept teilen') : null,
-    h('div', { class: 'actions' }, it ? confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }) : null, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
+    h('div', { class: 'actions' }, it ? confirmBtn('Löschen', 'Wirklich löschen?', () => { closeSheet(); removeUndo([it], 'Rezept gelöscht'); }) : null, h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
   if (!it) setTimeout(() => title.focus(), 60);
 }
 
@@ -780,13 +812,15 @@ function openRecipe(id) {
 function shopWeek(week) {
   const t = today(), people = prefs.people > 0 ? prefs.people : 2, own = store.all('recipe');
   const meals = store.all('meal').filter(m => week.includes(m.day) && m.day >= t && m.title);
-  const all = []; let dishes = 0;
-  for (const m of meals) { const ing = RC.ingredientsFor(m.title, own); if (!ing) continue; dishes++; all.push(...RC.scaleItems(ing.items, ing.serves || 0, ing.serves ? people : 0)); }
-  if (!dishes) return toast(meals.length ? 'Zu diesen Gerichten gibt es keine Zutatenliste' : 'Für diese Woche ist noch nichts geplant');
-  let n = 0;
-  for (const l of RC.mergeItems(all)) if (!onList(l)) { const same = store.all('shop').find(i => i.title.toLowerCase() === l.toLowerCase()); if (same) store.put({ id: same.id, done: false, doneAt: 0, by: store.me, c: Date.now() }); else store.put({ t: 'shop', title: l.slice(0, 120), done: false, by: store.me }); n++; }
-  toast(n ? `${n} Zutaten für ${dishes} ${dishes === 1 ? 'Gericht' : 'Gerichte'} auf der Liste` : 'Steht alles schon drauf');
-  if (n) cheer();
+  // sh = für dieses Gericht stehen die Zutaten schon drauf (sonst würde ein zweiter Tipp alle Mengen verdoppeln)
+  const all = [], put = []; let dishes = 0, known = 0;
+  for (const m of meals) { const ing = RC.ingredientsFor(m.title, own); if (!ing) continue; known++; if (m.sh === m.title) continue; dishes++; put.push(m); all.push(...RC.scaleItems(ing.items, ing.serves || 0, ing.serves ? people : 0)); }
+  if (!dishes) return toast(known ? 'Steht alles schon drauf' : meals.length ? 'Zu diesen Gerichten gibt es keine Zutatenliste' : 'Für diese Woche ist noch nichts geplant');
+  const { n, sums, undo } = putShopAll(RC.mergeItems(all));
+  for (const m of put) store.put({ id: m.id, sh: m.title });
+  if (!n) return toast('Steht alles schon drauf');
+  toastAction(`${n} Zutaten für ${dishes} ${dishes === 1 ? 'Gericht' : 'Gerichte'} auf der Liste${sums ? ` (${sums} zusammengezählt)` : ''}`, 'Rückgängig', () => { undo(); for (const m of put) store.put({ id: m.id, sh: '' }); });
+  cheer();
 }
 function openMeal(day) {
   const id = `meal-${day}`, old = store.get(id), own = store.all('recipe');
@@ -805,7 +839,7 @@ function openMeal(day) {
     onkeydown: e => { if (e.key === 'Enter' && input.value.trim()) set(input.value); } });
   openSheet(fmtDay(day, { weekday: 'long', day: 'numeric', month: 'long' }), h('div', { class: 'title-row' }, input),
     h('div', { class: 'chips' }, ['Reste', 'Essen gehen', 'Bestellen', 'Brotzeit'].map(x => h('button', { type: 'button', onclick: () => set(x) }, x))), hits,
-    h('div', { class: 'actions' }, old && old.title ? h('button', { type: 'button', class: 'btn danger', onclick: () => { store.remove(id); closeSheet(); } }, 'Entfernen') : null,
+    h('div', { class: 'actions' }, old && old.title ? h('button', { type: 'button', class: 'btn danger', onclick: () => { closeSheet(); removeUndo([old], 'Gericht entfernt'); } }, 'Entfernen') : null,
       h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: () => { if (!input.value.trim()) return input.focus(); set(input.value); } }, 'Speichern')));
   draw();
   if (!old) setTimeout(() => input.focus(), 60);
@@ -839,6 +873,24 @@ function openLinkImport() {
   setTimeout(() => box.focus(), 60);
 }
 
+// Kalender-Abo: Der iPhone-Kalender holt sich die Termine selbst über eine geheime Lese-Adresse
+async function openAbo() {
+  const box = h('div', { id: 'aboBox' }, h('p', { class: 'hint' }, 'Einen Moment …'));
+  openSheet('Kalender-Abo', h('p', { class: 'hint' }, 'Eure Termine erscheinen im Kalender des iPhones – auch im Sperrbildschirm, in Widgets und auf der Uhr. Dort sind sie nur zum Ansehen; geändert wird weiter hier.'), box);
+  const draw = token => {
+    if (token === null) return box.replaceChildren(h('p', { class: 'hint' }, 'Gerade keine Verbindung. Bitte später noch einmal versuchen.'));
+    if (!token) return box.replaceChildren(h('button', { type: 'button', class: 'btn primary wide', id: 'aboOn', onclick: async () => draw(((await store.ask('abo', { on: true })) || { token: null }).token) }, 'Abo einrichten'));
+    const path = `${API.replace(/^https?:\/\//, '')}/s/${store.cfg.spaceId}/cal/${token}.ics`, web = `${API.match(/^https?/)[0]}://${path}`;
+    box.replaceChildren(
+      h('a', { class: 'btn primary wide', id: 'aboGo', href: `webcal://${path}` }, '🗓️ Im iPhone-Kalender abonnieren'),
+      h('button', { type: 'button', class: 'btn soft wide', id: 'aboCopy', onclick: async () => { try { await navigator.clipboard.writeText(web); toast('Adresse kopiert'); } catch { toast('Kopieren ging nicht'); } } }, '📋 Adresse kopieren (für andere Kalender)'),
+      h('p', { class: 'hint' }, 'Jedes Handy abonniert einmal für sich. Der Kalender sieht von selbst nach Neuem – je nach Einstellung alle paar Minuten bis einmal am Tag, also nicht sofort. Einstellen lässt sich das unter Einstellungen › Kalender › Accounts › Datenabgleich.'),
+      h('p', { class: 'hint' }, 'Wer die Adresse kennt, kann eure Termine lesen. Gib sie nicht weiter.'),
+      confirmBtn('Abo beenden', 'Adresse ungültig machen?', async () => { const r = await store.ask('abo', { off: true }); draw(r ? r.token : null); if (r) toast('Abo beendet – im iPhone-Kalender noch entfernen'); }));
+  };
+  const r = await store.ask('abo', {});
+  draw(r ? r.token : null);
+}
 function openShop(id) {
   const it = store.get(id);
   if (!it) return;
@@ -846,7 +898,7 @@ function openShop(id) {
   const save = () => { const t = title.value.trim(); if (!t) return title.focus(); if (t !== it.title) store.put({ id, title: t }); closeSheet(); };
   openSheet('Eintrag', h('div', { class: 'title-row' }, title),
     it.by ? h('p', { class: 'hint' }, `Aufgeschrieben von ${person(it.by).name}`) : null,
-    h('div', { class: 'actions' }, confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }), h('button', { type: 'button', class: 'btn primary', onclick: save }, 'Speichern')));
+    h('div', { class: 'actions' }, h('button', { type: 'button', class: 'btn danger', id: 'shopDel', onclick: () => { closeSheet(); removeUndo([it], 'Eintrag gelöscht'); } }, 'Löschen'), h('button', { type: 'button', class: 'btn primary', onclick: save }, 'Speichern')));
 }
 
 // ---- To-dos -----------------------------------------------------------------------------------
@@ -880,9 +932,9 @@ views.todo = {
       return row(x, { meta, onOpen: () => openTodo(x.id) });
     };
     const lateTools = items => h('span', { class: 'sec-tools' }, 'Alle auf ', ['heute', 'morgen'].flatMap((l, i) => [i ? ' · ' : null,
-      h('button', { type: 'button', class: 'link', id: `late${i}`, onclick: () => { const d = M.addDays(today(), i); for (const x of items) store.put({ id: x.id, due: d }); toast(`${items.length} ${items.length === 1 ? 'Aufgabe' : 'Aufgaben'} auf ${l} verschoben`); } }, l)]));
+      h('button', { type: 'button', class: 'link', id: `late${i}`, onclick: () => { const d = M.addDays(today(), i), was = items.map(x => [x.id, x.due]); for (const x of items) store.put({ id: x.id, due: d }); toastAction(`${items.length} ${items.length === 1 ? 'Aufgabe' : 'Aufgaben'} auf ${l} verschoben`, 'Rückgängig', () => { for (const [id, due] of was) store.put({ id, due }); }); } }, l)]));
     const kids = groups.flatMap(g => section(g.title, g.key === 'late' ? lateTools(g.items) : g.key === 'done'
-      ? confirmBtn('Aufräumen', 'Alle entfernen?', () => { for (const x of store.all('todo').filter(x => x.done)) store.remove(x.id); toast('Erledigte entfernt'); }, 'link') : null, g.items.map(mk)).map(el => (el.classList.add(`g-${g.key}`), el)));
+      ? h('button', { type: 'button', class: 'link', id: 'todoClear', onclick: () => removeUndo(store.all('todo').filter(x => x.done), 'Erledigte entfernt') }, 'Aufräumen') : null, g.items.map(mk)).map(el => (el.classList.add(`g-${g.key}`), el)));
     if (!groups.some(g => g.key !== 'done')) kids.unshift(h('div', { class: 'empty' }, h('div', { class: 'empty-emo' }, '✅'), h('p', {}, ui.filter ? 'Hier ist nichts offen.' : 'Nichts offen. Schreib oben eine Aufgabe auf.')));
     $('#todoList').replaceChildren(...kids);
     knownDone();
@@ -931,7 +983,7 @@ function openTodo(id) {
     field('Wer macht das?', seg([['', 'Egal'], ...whoOptions('Beide')], f.who || '', v => { f.who = v; })),
     field('Fällig', quick, h('div', { class: 'two' }, date, rep)), rotBox,
     field('Unterpunkte', subList, subIn), note,
-    h('div', { class: 'actions' }, confirmBtn('Löschen', 'Wirklich löschen?', () => { store.remove(id); closeSheet(); }), h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
+    h('div', { class: 'actions' }, confirmBtn('Löschen', 'Wirklich löschen?', () => { closeSheet(); const x = store.get(id); if (x) removeUndo([x], 'Aufgabe gelöscht'); }), h('button', { type: 'button', class: 'btn primary', id: 'saveBtn', onclick: save }, 'Speichern')));
 }
 
 // ---- Einstellungen ----------------------------------------------------------------------------
@@ -994,7 +1046,8 @@ function openSettings() {
     group('Zu zweit', h('p', { class: 'hint' }, ot.named ? [h('i', { class: 'dot', style: `--c1:${ot.color};--c2:${ot.color}` }), ` ${ot.name} ist dabei.`] : 'Noch allein hier. Gib den Paar-Code weiter – auf dem zweiten Handy „Ich habe einen Paar-Code“ wählen.'), codeBox()),
     group('Abgleich', state, h('button', { type: 'button', class: 'btn soft', onclick: async () => { const ok = await store.sync(); toast(ok ? 'Abgeglichen' : 'Gerade keine Verbindung'); } }, 'Jetzt abgleichen')),
     group('Eure Daten',
-      h('button', { type: 'button', class: 'btn soft', id: 'icsBtn', onclick: () => giveFile('home-kalender.ics', X.toICS(store.all('event')), 'text/calendar') }, '🗓️ Kalender exportieren (für Apple Kalender)'),
+      h('button', { type: 'button', class: 'btn soft', id: 'aboBtn', onclick: openAbo }, '🔗 Im iPhone-Kalender anzeigen (Abo)'),
+      h('button', { type: 'button', class: 'btn soft', id: 'icsBtn', onclick: () => giveFile('home-kalender.ics', X.toICS(store.all('event')), 'text/calendar') }, '🗓️ Kalender einmalig als Datei ausgeben'),
       h('button', { type: 'button', class: 'btn soft', id: 'backupBtn', onclick: () => giveFile(`home-sicherung-${today()}.json`, X.toBackup(store.everything(), Date.now()), 'application/json') }, '💾 Sicherung als Datei speichern'),
       h('label', { class: 'btn soft file' }, '📂 Sicherung einspielen', h('input', { type: 'file', accept: '.json,application/json', id: 'restoreIn', onchange: async e => {
         const f = e.target.files[0]; if (!f) return;

@@ -613,3 +613,8 @@ button.gap:active span { color: var(--accent); }
 .bday-when.soon { color: var(--accent); }
 .bdays .sw { border-radius: 0; }
 .bdays .sw + .sw { border-top: 1px solid var(--line); }
+
+/* ---- Kalender-Abo ---- */
+#aboBox { display: grid; gap: 10px; }
+#aboBox .hint { margin: 0; }
+a.btn { display: block; text-align: center; text-decoration: none; }

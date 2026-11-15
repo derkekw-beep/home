@@ -9,7 +9,7 @@ export const INTRO = [
   ['🛒', 'Eine Einkaufsliste für beide', 'Schreib auf, was fehlt – gern mehrere Sachen auf einmal: „Milch, Brot, Eier“. Im Laden hilft der Einkaufsmodus mit großen Zeilen. Unter „Rezepte“ genügt ein Name wie „Lasagne“ oder ein Link – die Zutaten kommen von selbst. Unter „Plan“ steht, was es diese Woche gibt.'],
   ['✅', 'To-dos mit Datum und Person', '„Müll rausbringen morgen“ genügt. Aufgaben lassen sich zuweisen, bekommen Unterpunkte und können sich zwischen euch abwechseln. Der Wochenrückblick zeigt, wer was geschafft hat.'],
   ['💌', 'Die Heute-Karte', 'Ganz oben steht, was als Nächstes kommt und wie viele Tage es noch bis zum Urlaub sind. Dort kannst du auch einen kleinen Zettel für den anderen hinlegen. Zu groß? Der Pfeil klappt sie ein.'],
-  ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, den Kalender-Export und die Sicherung findest du oben rechts in den Einstellungen.'],
+  ['🔔', 'Nichts verpassen', 'Mit Mitteilungen erfährst du, wenn der andere etwas einträgt, und wirst an Termine erinnert. Das, die Farben, das Kalender-Abo fürs iPhone und die Sicherung findest du oben rechts in den Einstellungen.'],
 ];
 
 export const TOURS = {
@@ -24,6 +24,11 @@ export const TOURS = {
 
 // Neueste Version zuerst. Bei jedem Update mit sichtbaren Änderungen oben einen Eintrag ergänzen.
 export const NEWS = [
+  ['2.0', '15. November 2026', [
+    ['🗓️', 'Termine im iPhone-Kalender', 'Unter Einstellungen › Eure Daten richtest du ein Abo ein. Dann stehen eure Termine auch im Kalender des iPhones, im Sperrbildschirm und in Widgets.'],
+    ['➕', 'Mengen werden zusammengezählt', 'Steht „1 l Milch“ schon auf der Liste und ein Rezept bringt noch 500 ml, wird daraus eine Zeile mit 1,5 l.'],
+    ['↩️', 'Rückgängig überall', 'Gelöscht, abgehakt, aufgeräumt oder ein ganzes Rezept auf die Liste gesetzt: Unten erscheint kurz „Rückgängig“.'],
+  ]],
   ['1.9', '10. November 2026', [
     ['🎂', 'Geburtstagsliste', 'Im Kalender neben „Tag“ und „Woche“: alle Geburtstage, der nächste zuerst, mit Alter und „in 12 Tagen“. Schnell eintragen über das Plus; erinnert wird drei Tage vorher und am Tag selbst.'],
   ]],

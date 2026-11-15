@@ -26,9 +26,10 @@ const p2 = n => String(n).padStart(2, '0');
 const dDate = day => day.replace(/-/g, '');
 const dTime = (day, min) => { const d = addDays(day, Math.floor(min / 1440)), m = ((min % 1440) + 1440) % 1440; return `${dDate(d)}T${p2(Math.floor(m / 60))}${p2(m % 60)}00`; };
 const RRULE = { d: 'FREQ=DAILY', w: 'FREQ=WEEKLY', w2: 'FREQ=WEEKLY;INTERVAL=2', m: 'FREQ=MONTHLY', y: 'FREQ=YEARLY' };
-export function toICS(events, now = new Date()) {
+export function toICS(events, now = new Date(), name = '') {
   const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
   const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Home Planer//DE', 'CALSCALE:GREGORIAN'];
+  if (name) out.push(`X-WR-CALNAME:${esc(name)}`, 'REFRESH-INTERVAL;VALUE=DURATION:PT30M', 'X-PUBLISHED-TTL:PT30M');      // fürs Abo: Name und wie oft nachgesehen werden soll
   for (const e of events) {
     if (!e.date || e.x) continue;
     out.push('BEGIN:VEVENT', `UID:${e.id}@home-planer`, `DTSTAMP:${stamp}`, `SUMMARY:${esc(`${e.icon ? `${e.icon} ` : ''}${e.title}`)}`);

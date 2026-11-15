@@ -82,6 +82,30 @@ export function describeQuick(q, today, fmtDate, fmtTime) {
 }
 
 // ---- Einkauf ----------------------------------------------------------------------------------
+// Gleiche Sache zweimal aufgeschrieben? Dann eine Zeile mit der Summe: „1 l Milch“ + „500 ml Milch“ -> „1,5 l Milch“.
+// Liefert die neue Zeile, die alte Zeile unverändert (nichts zu tun) oder null (passt nicht zusammen).
+const BASE = { g: ['g', 1], kg: ['g', 1000], ml: ['ml', 1], l: ['ml', 1000] };
+const ONE = { dosen: 'dose', flaschen: 'flasche', kisten: 'kiste', packungen: 'packung', 'pck.': 'pck', scheiben: 'scheibe', stangen: 'stange', gläser: 'glas', rollen: 'rolle', tüten: 'tüte', 'stk.': '', stk: '', stück: '', x: '', '×': '' };
+export function parseQty(title) {
+  const t = String(title || '').trim();
+  const q = /^(\d+(?:[.,]\d+)?)\s*(x|×|kg|g|ml|l|EL|TL|Stk\.?|Stück|Pck\.?|Päckchen|Packung(?:en)?|Dosen?|Flaschen?|Kisten?|Becher|Scheiben?|Stangen?|Gläser|Glas|Würfel|Rollen?|Bund|Tüten?)?\s+(.+)$/i.exec(t);
+  if (!q) return { n: null, name: t };
+  const raw = q[2] || '', low = raw.toLowerCase(), base = BASE[low];
+  return { n: Number(q[1].replace(',', '.')) * (base ? base[1] : 1), unit: base ? base[0] : low in ONE ? ONE[low] : low, show: raw, name: q[3].trim() };
+}
+const sameName = (a, b) => { const x = a.toLowerCase(), y = b.toLowerCase(); return x === y || x === `${y}n` || y === `${x}n` || x === `${y}en` || y === `${x}en`; };
+const num = n => String(Math.round(n * 100) / 100).replace('.', ',');
+export function mergeShop(oldTitle, newTitle) {
+  const a = parseQty(oldTitle), b = parseQty(newTitle);
+  if (!sameName(a.name, b.name)) return null;
+  if (b.n === null) return oldTitle;                       // „Milch“ kommt dazu, „2 l Milch“ steht schon da
+  if (a.n === null) return newTitle.trim();                // „Milch“ stand da, jetzt mit Menge
+  if (a.unit !== b.unit) return null;                      // 200 g Tomaten und 3 Tomaten bleiben zwei Zeilen
+  const n = a.n + b.n, name = a.name.length >= b.name.length ? a.name : b.name;
+  if (a.unit === 'g' || a.unit === 'ml') return n >= 1000 ? `${num(n / 1000)} ${a.unit === 'g' ? 'kg' : 'l'} ${name}` : `${num(n)} ${a.unit} ${name}`;
+  if (!a.unit) return /^(x|×)$/i.test(a.show) ? `${num(n)}x ${name}` : `${num(n)} ${name}`;
+  return `${num(n)} ${n > 1 && b.show.length > a.show.length ? b.show : a.show} ${name}`;
+}
 // „2x Milch“, „3 Bananen“, „500g Hack“ -> Menge und Name getrennt
 export function splitQty(title) {
   const m = /^(\d+(?:[.,]\d+)? ?(?:x|×|stk\.?|stück|kg|g|l|ml|pck\.?|packung(?:en)?|dosen?|flaschen?|kisten?|becher|gläser|glas|bund|tüten?)?)\s+(.+)$/i.exec(title.trim());
