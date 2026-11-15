@@ -80,6 +80,90 @@ export function cheer(cls = 'happy') {
   cheerTimer = setTimeout(() => b.classList.remove('happy', 'wink'), 1300);
 }
 
+// ---- Der Begleiter lebt ------------------------------------------------------------------------
+// Er sieht dem Finger nach, läuft ab und zu zu einem Knopf der Kopfleiste, stupst ihn an und geht zurück.
+// Bewegt wird die Position (left), nicht die Zeichnung – so bleibt er auf dem Handy scharf.
+let aimTimer, lifeTimer, walking = false;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const still = () => document.hidden || document.documentElement.dataset.buddy === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleepy = () => { const hr = new Date().getHours(); return hr >= 23 || hr < 6; };
+function look(b, x, y, ms) {
+  b.style.setProperty('--lx', `${x.toFixed(2)}px`);
+  b.style.setProperty('--ly', `${y.toFixed(2)}px`);
+  b.classList.add('aim');
+  clearTimeout(aimTimer);
+  if (ms) aimTimer = setTimeout(() => b.classList.remove('aim'), ms);
+}
+// Zu einem Punkt auf dem Bildschirm sehen (z. B. dorthin, wo gerade getippt wurde)
+export function buddyAim(x, y, ms = 1300) {
+  const b = $('#buddy');
+  if (!b || walking || still()) return;
+  const r = b.getBoundingClientRect(), dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 70);
+  look(b, dx / d * 2.8 * k, dy / d * 2.2 * k, ms);
+}
+// Kurze Regung ohne Ortswechsel: 'stretch' (strecken), 'shake' (Blättchen schütteln), 'down' (nach unten sehen)
+function mood(b, name, ms) {
+  if (name === 'down') return look(b, 0, 2.2, ms);
+  b.classList.add(name);
+  setTimeout(() => b.classList.remove(name), ms);
+}
+// Zu einem Knopf laufen (side 1 = rechts von ihm, -1 = links), ihn anstupsen, zurückgehen
+async function visit(b, el, side) {
+  const br = b.getBoundingClientRect(), er = el.getBoundingClientRect();
+  const dx = Math.round(side > 0 ? er.left - br.right - 1 : er.right - br.left + 1);
+  if (!er.width || Math.abs(dx) < 16 || walking) return;
+  walking = true;
+  const ms = Math.round(Math.min(1500, 450 + Math.abs(dx) * 7));
+  const go = async (to, dir) => {
+    b.style.setProperty('--walk', `${ms}ms`);
+    b.style.setProperty('--bx', `${to}px`);
+    look(b, dir * 2.6, 0, 0);
+    b.classList.add('walk');
+    await wait(ms);
+    b.classList.remove('walk');
+  };
+  await go(dx, side);
+  b.style.setProperty('--lean', `${side * 11}deg`);
+  b.classList.add('lean');
+  await wait(260);
+  el.style.setProperty('--nd', side);
+  el.classList.add('nudged');
+  await wait(650);
+  el.classList.remove('nudged');
+  b.classList.remove('lean');
+  await wait(350);
+  await go(0, -side);
+  b.classList.remove('aim');
+  walking = false;
+}
+export function buddyDo(what) {
+  const b = $('#buddy');
+  if (!b || walking || b.classList.contains('sad')) return;
+  const right = [...document.querySelectorAll('.top-right > *')].find(e => !e.hidden && e.getBoundingClientRect().width > 0);
+  const left = document.querySelector('#topLeft > :last-child');
+  if (what === 'right' && right) return visit(b, right, 1);
+  if (what === 'left' && left) return visit(b, left, -1);
+  if (what === 'stretch') return mood(b, 'stretch', 1100);
+  if (what === 'shake') return mood(b, 'shake', 900);
+  return mood(b, 'down', 1600);
+}
+export function buddyLife() {
+  if (lifeTimer) return;
+  document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('#buddy')) buddyAim(e.clientX, e.clientY); }, { passive: true });
+  const next = () => {
+    lifeTimer = setTimeout(() => {
+      const b = $('#buddy');
+      if (b) b.classList.toggle('sleepy', sleepy());
+      if (b && !still() && !document.querySelector('.sheet-wrap') && !(sleepy() && Math.random() < 0.8)) {
+        const r = Math.random();
+        buddyDo(r < 0.3 ? 'right' : r < 0.48 ? 'left' : r < 0.66 ? 'stretch' : r < 0.83 ? 'shake' : 'down');
+      }
+      next();
+    }, 9000 + Math.random() * 12000);
+  };
+  next();
+}
+
 export async function giveFile(name, text, type) {
   try {
     const file = new File([text], name, { type });

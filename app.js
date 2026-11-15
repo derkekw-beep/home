@@ -6,7 +6,7 @@ import * as RC from './recipes.js';
 import { createStore } from './store.js';
 import { API, LOCAL } from './config.js';
 import * as Push from './push.js';
-import { $, today, nowMin, fmtDay, h, icon, play, known, knownDone, buddy, cheer, giveFile, toast, swipe, confirmBtn, seg, field, toastAction, swipeRow } from './ui.js';
+import { $, today, nowMin, fmtDay, h, icon, play, known, knownDone, buddy, buddyLife, buddyDo, cheer, giveFile, toast, swipe, confirmBtn, seg, field, toastAction, swipeRow } from './ui.js';
 import { LOOKS, INTRO, TOURS, NEWS } from './texte.js';
 
 const store = createStore({ storage: localStorage, fetchFn: (u, i) => fetch(u, i), api: API });
@@ -83,6 +83,7 @@ const TABS = [{ id: 'cal', label: 'Kalender', icon: 'cal' }, { id: 'shop', label
 const views = {};
 
 function buildShell() {
+  buddyLife();
   root.replaceChildren(
     h('header', { class: 'top' },
       h('div', { class: 'top-left', id: 'topLeft' }),
@@ -1274,4 +1275,4 @@ render();
 newsOnce();
 introOnce();
 if (store.cfg) { store.sync(); connect(); Push.refresh(store); planSoon(); }
-window.zweiplan = { store, ui };   // für die Klicktests
+window.zweiplan = { store, ui, buddyDo };   // für die Klicktests

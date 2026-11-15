@@ -618,3 +618,19 @@ button.gap:active span { color: var(--accent); }
 #aboBox { display: grid; gap: 10px; }
 #aboBox .hint { margin: 0; }
 a.btn { display: block; text-align: center; text-decoration: none; }
+
+/* ---- Der Begleiter lebt: Blick folgt dem Finger, kleine Wege zu den Knöpfen ---- */
+.buddy, :root[data-buddy=plain] .buddy { left: calc(50% + var(--bx, 0px)); transition: left var(--walk, 900ms) cubic-bezier(.45, .05, .4, 1); z-index: 1; }
+.buddy.aim .b-look { animation: none; transform: translate(var(--lx, 0), var(--ly, 0)); transition: transform .2s ease-out; }
+:root .buddy.walk .b-all { animation: buddyWalk .36s ease-in-out infinite; }
+:root .buddy.lean .b-all { animation: none; transform: rotate(var(--lean, 10deg)); transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); }
+:root .buddy.stretch .b-all { animation: buddyStretch 1.1s ease-in-out; }
+.buddy.stretch .b-eyes { transform: scaleY(.15); animation: none; }
+.buddy.shake .b-sprout { animation: buddyShake .9s ease-in-out; }
+.buddy.sleepy .b-eyes { animation: none; transform: scaleY(.42) translateY(1.5px); }
+.buddy.sleepy .b-body { animation-duration: 5.5s; }
+@keyframes buddyWalk { 0%, 100% { transform: rotate(-6deg); } 25%, 75% { transform: translateY(-1.6px); } 50% { transform: rotate(6deg); } }
+@keyframes buddyStretch { 35%, 60% { transform: scale(.93, 1.13); } 80% { transform: scale(1.04, .96); } }
+@keyframes buddyShake { 0%, 100% { transform: rotate(0); } 15%, 45%, 75% { transform: rotate(-20deg); } 30%, 60%, 90% { transform: rotate(20deg); } }
+.nudged { animation: nudged .6s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes nudged { 25% { transform: translateX(calc(var(--nd, 1) * 4px)) rotate(calc(var(--nd, 1) * 9deg)); } 55% { transform: translateX(calc(var(--nd, 1) * -1.5px)) rotate(calc(var(--nd, 1) * -4deg)); } }
